@@ -11,6 +11,7 @@ import 'features/calculator_roi/calc_manager.dart';
 import 'features/calculator_roi/calc_screen.dart';
 import 'features/interest_trigger/trigger_manager.dart';
 import 'features/interest_trigger/trigger_screen.dart';
+import 'features/onboarding/onboarding_screen.dart';
 
 void main() {
   runApp(
@@ -35,14 +36,36 @@ class MainApp extends StatelessWidget {
       title: 'BNM SME Financing Platform',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: Consumer<AuthManager>(
-        builder: (context, auth, _) {
-          if (!auth.isLoggedIn) {
-            return const LoginScreen();
-          }
-          return const _HomeShell();
-        },
-      ),
+      home: const _AppEntry(),
+    );
+  }
+}
+
+class _AppEntry extends StatefulWidget {
+  const _AppEntry();
+
+  @override
+  State<_AppEntry> createState() => _AppEntryState();
+}
+
+class _AppEntryState extends State<_AppEntry> {
+  bool _hasCompletedOnboarding = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_hasCompletedOnboarding) {
+      return OnboardingScreen(
+        onFinished: () => setState(() => _hasCompletedOnboarding = true),
+      );
+    }
+
+    return Consumer<AuthManager>(
+      builder: (context, auth, _) {
+        if (!auth.isLoggedIn) {
+          return const LoginScreen();
+        }
+        return const _HomeShell();
+      },
     );
   }
 }
