@@ -49,8 +49,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           content: const Text('✅ Profile updated!'),
           backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
     }
@@ -73,12 +74,184 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Navigator.pop(ctx);
               context.read<AuthManager>().logout();
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             child: const Text('Logout'),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProfileHeader(
+    BuildContext context,
+    AuthManager auth,
+    UserAccount user,
+  ) {
+    return Center(
+      child: Column(
+        children: [
+          CircleAvatar(
+            radius: 44,
+            backgroundColor: auth.isBanker
+                ? AppColors.bankerTeal
+                : AppColors.primaryRed,
+            child: Text(
+              user.initials,
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            user.fullName,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: AppColors.darkGrey,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            user.email,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.mediumGrey, fontSize: 14),
+          ),
+          if (auth.isBanker) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.bankerTeal.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.bankerTeal, width: 1.5),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.verified, color: AppColors.bankerTeal, size: 16),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Banker Account',
+                    style: TextStyle(
+                      color: AppColors.bankerTeal,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInformationCard(
+    BuildContext context,
+    AuthManager auth,
+    UserAccount user,
+  ) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.person_outline,
+                  color: AppColors.accentBlue,
+                  size: 22,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Profile Information',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.darkGrey,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _toggleEdit,
+                  icon: Icon(_isEditing ? Icons.save : Icons.edit, size: 18),
+                  label: Text(_isEditing ? 'Save' : 'Edit'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: _isEditing
+                        ? AppColors.success
+                        : AppColors.accentBlue,
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            _ProfileField(
+              label: 'Full Name',
+              icon: Icons.badge_outlined,
+              controller: _nameCtrl,
+              isEditing: _isEditing && !auth.isBanker,
+            ),
+            const SizedBox(height: 16),
+            _ProfileField(
+              label: 'Email',
+              icon: Icons.email_outlined,
+              value: user.email,
+              isEditing: false,
+            ),
+            const SizedBox(height: 16),
+            _ProfileField(
+              label: 'Company',
+              icon: Icons.business,
+              controller: _companyCtrl,
+              isEditing: _isEditing && !auth.isBanker,
+            ),
+            const SizedBox(height: 16),
+            _ProfileField(
+              label: 'Phone',
+              icon: Icons.phone_outlined,
+              controller: _phoneCtrl,
+              isEditing: _isEditing && !auth.isBanker,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogoutCard() {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundColor: AppColors.error.withValues(alpha: 0.1),
+            child: const Icon(Icons.logout, color: AppColors.error),
+          ),
+          title: const Text(
+            'Logout',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: AppColors.error,
+            ),
+          ),
+          subtitle: Text(
+            'Sign out of your account',
+            style: TextStyle(color: AppColors.mediumGrey, fontSize: 12),
+          ),
+          trailing: const Icon(
+            Icons.chevron_right,
+            color: AppColors.mediumGrey,
+          ),
+          onTap: _handleLogout,
+        ),
       ),
     );
   }
@@ -92,196 +265,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return const Center(child: Text('Not logged in'));
     }
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        const SizedBox(height: 8),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isLandscape =
+            MediaQuery.orientationOf(context) == Orientation.landscape;
+        final useTwoPane = isLandscape && constraints.maxWidth >= 700;
 
-        Center(
-          child: Column(
-            children: [
-              CircleAvatar(
-                radius: 44,
-                backgroundColor: auth.isBanker
-                    ? AppColors.bankerTeal
-                    : AppColors.primaryRed,
-                child: Text(
-                  user.initials,
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              Text(
-                user.fullName,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.darkGrey,
-                    ),
-              ),
-              const SizedBox(height: 4),
-
-              Text(
-                user.email,
-                style: TextStyle(color: AppColors.mediumGrey, fontSize: 14),
-              ),
-              const SizedBox(height: 8),
-
-              if (auth.isBanker)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.bankerTeal.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                    border:
-                        Border.all(color: AppColors.bankerTeal, width: 1.5),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.verified,
-                          color: AppColors.bankerTeal, size: 16),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Banker Account',
-                        style: TextStyle(
-                          color: AppColors.bankerTeal,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 28),
-
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: useTwoPane
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.person_outline,
-                        color: AppColors.accentBlue, size: 22),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Profile Information',
-                      style:
-                          Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.darkGrey,
-                              ),
+                    Expanded(
+                      flex: 2,
+                      child: Column(
+                        children: [
+                          _buildProfileHeader(context, auth, user),
+                          const SizedBox(height: 24),
+                          _buildLogoutCard(),
+                          const SizedBox(height: 20),
+                          Text(
+                            'BNM SME Platform v0.1.0',
+                            style: TextStyle(
+                              color: AppColors.mediumGrey,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    const Spacer(),
-                    TextButton.icon(
-                      onPressed: _toggleEdit,
-                      icon: Icon(
-                        _isEditing ? Icons.save : Icons.edit,
-                        size: 18,
-                      ),
-                      label: Text(_isEditing ? 'Save' : 'Edit'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: _isEditing
-                            ? AppColors.success
-                            : AppColors.accentBlue,
-                      ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      flex: 3,
+                      child: _buildInformationCard(context, auth, user),
                     ),
                   ],
-                ),
-                const Divider(height: 24),
-
-                _ProfileField(
-                  label: 'Full Name',
-                  icon: Icons.badge_outlined,
-                  controller: _nameCtrl,
-                  isEditing: _isEditing && !auth.isBanker,
-                ),
-                const SizedBox(height: 16),
-
-                _ProfileField(
-                  label: 'Email',
-                  icon: Icons.email_outlined,
-                  value: user.email,
-                  isEditing: false,
-                ),
-                const SizedBox(height: 16),
-
-                _ProfileField(
-                  label: 'Company',
-                  icon: Icons.business,
-                  controller: _companyCtrl,
-                  isEditing: _isEditing && !auth.isBanker,
-                ),
-                const SizedBox(height: 16),
-
-                _ProfileField(
-                  label: 'Phone',
-                  icon: Icons.phone_outlined,
-                  controller: _phoneCtrl,
-                  isEditing: _isEditing && !auth.isBanker,
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              children: [
-                ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: AppColors.error.withValues(alpha: 0.1),
-                    child: const Icon(Icons.logout, color: AppColors.error),
-                  ),
-                  title: const Text(
-                    'Logout',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.error,
+                )
+              : Column(
+                  children: [
+                    const SizedBox(height: 8),
+                    _buildProfileHeader(context, auth, user),
+                    const SizedBox(height: 28),
+                    _buildInformationCard(context, auth, user),
+                    const SizedBox(height: 16),
+                    _buildLogoutCard(),
+                    const SizedBox(height: 28),
+                    Text(
+                      'BNM SME Platform v0.1.0',
+                      style: TextStyle(
+                        color: AppColors.mediumGrey,
+                        fontSize: 12,
+                      ),
                     ),
-                  ),
-                  subtitle: Text(
-                    'Sign out of your account',
-                    style: TextStyle(
-                        color: AppColors.mediumGrey, fontSize: 12),
-                  ),
-                  trailing: const Icon(Icons.chevron_right,
-                      color: AppColors.mediumGrey),
-                  onTap: _handleLogout,
+                    const SizedBox(height: 16),
+                  ],
                 ),
-              ],
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 32),
-
-        Center(
-          child: Text(
-            'BNM SME Platform v0.1.0',
-            style: TextStyle(
-              color: AppColors.lightGrey,
-              fontSize: 12,
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-      ],
+        );
+      },
     );
   }
 }
@@ -303,16 +344,12 @@ class _ProfileField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayValue =
-        value ?? controller?.text ?? '';
+    final displayValue = value ?? controller?.text ?? '';
 
     if (isEditing && controller != null) {
       return TextFormField(
         controller: controller,
-        decoration: appInputDecoration(
-          label: label,
-          prefixIcon: icon,
-        ),
+        decoration: appInputDecoration(label: label, prefixIcon: icon),
       );
     }
 

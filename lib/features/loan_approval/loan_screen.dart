@@ -63,142 +63,154 @@ class _SmeViewState extends State<_SmeView> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final requests = context.watch<LoanManager>().allRequests;
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildApplicationForm(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      Icon(Icons.description_outlined,
-                          color: AppColors.accentBlue, size: 22),
-                      const SizedBox(width: 8),
-                      Text(
-                        'New Loan Application',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.darkGrey,
-                            ),
+                  Icon(
+                    Icons.description_outlined,
+                    color: AppColors.accentBlue,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'New Loan Application',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.darkGrey,
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  TextFormField(
-                    controller: _companyCtrl,
-                    decoration: appInputDecoration(
-                      label: 'Company Name',
-                      hint: 'e.g. TechVision Sdn Bhd',
-                      prefixIcon: Icons.business,
-                    ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 14),
-
-                  DropdownButtonFormField<String>(
-                    initialValue: _selectedEquipment,
-                    decoration: appInputDecoration(
-                      label: 'Equipment Type',
-                      prefixIcon: Icons.precision_manufacturing,
-                    ),
-                    items: MockData.equipmentTypes
-                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                        .toList(),
-                    onChanged: (v) {
-                      if (v != null) setState(() => _selectedEquipment = v);
-                    },
-                  ),
-                  const SizedBox(height: 14),
-
-                  TextFormField(
-                    controller: _amountCtrl,
-                    decoration: appInputDecoration(
-                      label: 'Loan Amount (RM)',
-                      hint: 'e.g. 150000',
-                      prefixIcon: Icons.attach_money,
-                    ),
-                    keyboardType: TextInputType.number,
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Required';
-                      if (double.tryParse(v.trim()) == null) {
-                        return 'Enter a valid number';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 14),
-
-                  Text(
-                    'Interest Rate: ${_interestRate.toStringAsFixed(2)}%',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w500, color: AppColors.darkGrey),
-                  ),
-                  Slider(
-                    value: _interestRate,
-                    min: 1.0,
-                    max: 12.0,
-                    divisions: 44,
-                    activeColor: AppColors.accentBlue,
-                    label: '${_interestRate.toStringAsFixed(2)}%',
-                    onChanged: (v) => setState(() => _interestRate = v),
-                  ),
-                  const SizedBox(height: 10),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _submitApplication,
-                      icon: const Icon(Icons.send),
-                      label: const Text('Submit Application'),
                     ),
                   ),
                 ],
               ),
-            ),
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: _companyCtrl,
+                decoration: appInputDecoration(
+                  label: 'Company Name',
+                  hint: 'e.g. TechVision Sdn Bhd',
+                  prefixIcon: Icons.business,
+                ),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 14),
+              DropdownButtonFormField<String>(
+                initialValue: _selectedEquipment,
+                isExpanded: true,
+                decoration: appInputDecoration(
+                  label: 'Equipment Type',
+                  prefixIcon: Icons.precision_manufacturing,
+                ),
+                items: MockData.equipmentTypes
+                    .map(
+                      (e) => DropdownMenuItem(
+                        value: e,
+                        child: Text(e, overflow: TextOverflow.ellipsis),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (v) {
+                  if (v != null) setState(() => _selectedEquipment = v);
+                },
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _amountCtrl,
+                decoration: appInputDecoration(
+                  label: 'Loan Amount (RM)',
+                  hint: 'e.g. 150000',
+                  prefixIcon: Icons.attach_money,
+                ),
+                keyboardType: TextInputType.number,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return 'Required';
+                  if (double.tryParse(v.trim()) == null) {
+                    return 'Enter a valid number';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Interest Rate: ${_interestRate.toStringAsFixed(2)}%',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.darkGrey,
+                ),
+              ),
+              Slider(
+                value: _interestRate,
+                min: 1.0,
+                max: 12.0,
+                divisions: 44,
+                activeColor: AppColors.accentBlue,
+                label: '${_interestRate.toStringAsFixed(2)}%',
+                onChanged: (v) => setState(() => _interestRate = v),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _submitApplication,
+                  icon: const Icon(Icons.send),
+                  label: const Text('Submit Application'),
+                ),
+              ),
+            ],
           ),
         ),
+      ),
+    );
+  }
 
-        const SizedBox(height: 24),
-
+  Widget _buildApplications(BuildContext context, List<LoanRequest> requests) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         Row(
           children: [
-            const SizedBox(width: 16),
             Icon(Icons.history, color: AppColors.mediumGrey, size: 20),
             const SizedBox(width: 6),
-            Text(
-              'My Applications (${requests.length})',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: AppColors.mediumGrey,
-                    fontWeight: FontWeight.w600,
-                  ),
+            Expanded(
+              child: Text(
+                'My Applications (${requests.length})',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: AppColors.mediumGrey,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 8),
-
         if (requests.isEmpty)
           Card(
+            margin: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.all(40),
               child: Center(
                 child: Column(
                   children: [
-                    Icon(Icons.inbox_outlined,
-                        size: 48, color: AppColors.lightGrey),
+                    Icon(
+                      Icons.inbox_outlined,
+                      size: 48,
+                      color: AppColors.lightGrey,
+                    ),
                     const SizedBox(height: 8),
-                    Text('No applications yet',
-                        style: TextStyle(color: AppColors.mediumGrey)),
+                    Text(
+                      'No applications yet',
+                      style: TextStyle(color: AppColors.mediumGrey),
+                    ),
                   ],
                 ),
               ),
@@ -207,6 +219,43 @@ class _SmeViewState extends State<_SmeView> {
         else
           ...requests.reversed.map((req) => _SmeRequestCard(request: req)),
       ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final requests = context.watch<LoanManager>().allRequests;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isLandscape =
+            MediaQuery.orientationOf(context) == Orientation.landscape;
+        final useTwoPane = isLandscape && constraints.maxWidth >= 700;
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: useTwoPane
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 5, child: _buildApplicationForm(context)),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      flex: 6,
+                      child: _buildApplications(context, requests),
+                    ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildApplicationForm(context),
+                    const SizedBox(height: 24),
+                    _buildApplications(context, requests),
+                  ],
+                ),
+        );
+      },
     );
   }
 }
@@ -230,11 +279,13 @@ class _SmeRequestCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
           backgroundColor: _statusColor().withValues(alpha: 0.15),
-          child: Text(request.status.icon, style: const TextStyle(fontSize: 20)),
+          child: Text(
+            request.status.icon,
+            style: const TextStyle(fontSize: 20),
+          ),
         ),
         title: Text(
           request.equipmentName,
@@ -283,9 +334,10 @@ class _BankerView extends StatelessWidget {
             Text(
               'No loan applications to review',
               style: TextStyle(
-                  fontSize: 16,
-                  color: AppColors.mediumGrey,
-                  fontWeight: FontWeight.w500),
+                fontSize: 16,
+                color: AppColors.mediumGrey,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ),
@@ -308,7 +360,11 @@ class _BankerView extends StatelessWidget {
               color: AppColors.error,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.delete_forever, color: Colors.white, size: 28),
+            child: const Icon(
+              Icons.delete_forever,
+              color: Colors.white,
+              size: 28,
+            ),
           ),
           confirmDismiss: (direction) async {
             return await showDialog<bool>(
@@ -316,7 +372,8 @@ class _BankerView extends StatelessWidget {
               builder: (ctx) => AlertDialog(
                 title: const Text('Delete Application?'),
                 content: Text(
-                    'Remove ${req.companyName}\'s application permanently?'),
+                  'Remove ${req.companyName}\'s application permanently?',
+                ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(ctx, false),
@@ -324,8 +381,9 @@ class _BankerView extends StatelessWidget {
                   ),
                   TextButton(
                     onPressed: () => Navigator.pop(ctx, true),
-                    style:
-                        TextButton.styleFrom(foregroundColor: AppColors.error),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                    ),
                     child: const Text('Delete'),
                   ),
                 ],
@@ -369,8 +427,11 @@ class _BankerRequestCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   backgroundColor: AppColors.bankerTeal.withValues(alpha: 0.12),
-                  child: const Icon(Icons.business,
-                      color: AppColors.bankerTeal, size: 20),
+                  child: const Icon(
+                    Icons.business,
+                    color: AppColors.bankerTeal,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -380,19 +441,25 @@ class _BankerRequestCard extends StatelessWidget {
                       Text(
                         request.companyName,
                         style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 15),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
                       ),
                       Text(
                         request.equipmentName,
                         style: const TextStyle(
-                            color: AppColors.mediumGrey, fontSize: 13),
+                          color: AppColors.mediumGrey,
+                          fontSize: 13,
+                        ),
                       ),
                     ],
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: _statusColor().withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
@@ -411,15 +478,18 @@ class _BankerRequestCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
-            Row(
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
               children: [
                 _DetailChip(
-                    icon: Icons.attach_money,
-                    label: 'RM ${request.loanAmount.toStringAsFixed(0)}'),
-                const SizedBox(width: 12),
+                  icon: Icons.attach_money,
+                  label: 'RM ${request.loanAmount.toStringAsFixed(0)}',
+                ),
                 _DetailChip(
-                    icon: Icons.percent,
-                    label: '${request.interestRate.toStringAsFixed(2)}%'),
+                  icon: Icons.percent,
+                  label: '${request.interestRate.toStringAsFixed(2)}%',
+                ),
               ],
             ),
             const SizedBox(height: 14),
@@ -432,7 +502,9 @@ class _BankerRequestCard extends StatelessWidget {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () => manager.updateStatus(
-                          request.id, LoanStatus.notApproved),
+                        request.id,
+                        LoanStatus.notApproved,
+                      ),
                       icon: const Icon(Icons.close, size: 18),
                       label: const Text('Reject'),
                       style: OutlinedButton.styleFrom(
@@ -444,8 +516,8 @@ class _BankerRequestCard extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () => manager.updateStatus(
-                          request.id, LoanStatus.approved),
+                      onPressed: () =>
+                          manager.updateStatus(request.id, LoanStatus.approved),
                       icon: const Icon(Icons.check, size: 18),
                       label: const Text('Approve'),
                       style: ElevatedButton.styleFrom(
@@ -481,11 +553,14 @@ class _DetailChip extends StatelessWidget {
         children: [
           Icon(icon, size: 16, color: AppColors.mediumGrey),
           const SizedBox(width: 4),
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.darkGrey)),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: AppColors.darkGrey,
+            ),
+          ),
         ],
       ),
     );
