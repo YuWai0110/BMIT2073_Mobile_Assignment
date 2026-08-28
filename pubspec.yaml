@@ -9,8 +9,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-    # 状态管理神器，一个人写代码全靠它把 3 个模块串起来
+  path: ^1.9.1
   provider: ^6.1.2
+  sqflite: ^2.4.3
 
 dev_dependencies:
   flutter_test:

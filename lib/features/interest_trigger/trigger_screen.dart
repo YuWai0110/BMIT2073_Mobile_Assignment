@@ -21,7 +21,11 @@ class _TriggerScreenState extends State<TriggerScreen> {
   @override
   void initState() {
     super.initState();
-    _updateRates(_selectedYear);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _updateRates(_selectedYear);
+      }
+    });
   }
 
   void _updateRates(double yearDouble) {
@@ -64,105 +68,145 @@ class _TriggerScreenState extends State<TriggerScreen> {
   }
 
   void _showNotificationInbox() {
-    final manager = context.read<TriggerManager>();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) {
-        final inbox = manager.notificationInbox;
-        return DraggableScrollableSheet(
-          initialChildSize: 0.5,
-          maxChildSize: 0.85,
-          minChildSize: 0.3,
-          expand: false,
-          builder: (_, scrollCtrl) => Column(
-            children: [
-              Container(
-                margin: const EdgeInsets.only(top: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.lightGrey,
-                  borderRadius: BorderRadius.circular(2),
+      builder: (ctx) => Consumer<TriggerManager>(
+        builder: (_, manager, _) {
+          final notifications = manager.notifications;
+          return DraggableScrollableSheet(
+            initialChildSize: 0.5,
+            maxChildSize: 0.85,
+            minChildSize: 0.3,
+            expand: false,
+            builder: (_, scrollCtrl) => Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.lightGrey,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.notifications_active,
-                      color: AppColors.accentBlue,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Notification Inbox (${inbox.length})',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.notifications_active,
+                        color: AppColors.accentBlue,
                       ),
-                    ),
-                    const Spacer(),
-                    if (inbox.isNotEmpty)
-                      TextButton(
-                        onPressed: () {
-                          manager.clearInbox();
-                          Navigator.pop(ctx);
-                        },
-                        child: const Text('Clear All'),
-                      ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: inbox.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.notifications_off,
-                              size: 48,
-                              color: AppColors.lightGrey,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'No notifications yet',
-                              style: TextStyle(color: AppColors.mediumGrey),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.separated(
-                        controller: scrollCtrl,
-                        padding: const EdgeInsets.all(12),
-                        itemCount: inbox.length,
-                        separatorBuilder: (_, _) => const Divider(height: 1),
-                        itemBuilder: (_, i) => ListTile(
-                          leading: const CircleAvatar(
-                            backgroundColor: Color(0xFFE8F5E9),
-                            child: Icon(
-                              Icons.notifications,
-                              color: AppColors.success,
-                              size: 20,
-                            ),
-                          ),
-                          title: Text(
-                            inbox[i],
-                            style: const TextStyle(fontSize: 13),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Notification Inbox (${notifications.length})',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
                           ),
                         ),
                       ),
-              ),
-            ],
-          ),
-        );
-      },
+                      if (notifications.isNotEmpty)
+                        TextButton(
+                          onPressed: () {
+                            manager.clearInbox();
+                            Navigator.pop(ctx);
+                          },
+                          child: const Text('Clear All'),
+                        ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: notifications.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.notifications_off,
+                                size: 48,
+                                color: AppColors.lightGrey,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'No notifications yet',
+                                style: TextStyle(color: AppColors.mediumGrey),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.separated(
+                          controller: scrollCtrl,
+                          padding: const EdgeInsets.all(12),
+                          itemCount: notifications.length,
+                          separatorBuilder: (_, _) => const Divider(height: 1),
+                          itemBuilder: (_, index) {
+                            final notification = notifications[index];
+                            return ListTile(
+                              onTap: () =>
+                                  manager.markNotificationRead(notification.id),
+                              leading: CircleAvatar(
+                                backgroundColor: notification.isRead
+                                    ? AppColors.lightGrey.withValues(alpha: 0.3)
+                                    : const Color(0xFFE8F5E9),
+                                child: Icon(
+                                  notification.isRead
+                                      ? Icons.notifications_none
+                                      : Icons.notifications,
+                                  color: notification.isRead
+                                      ? AppColors.mediumGrey
+                                      : AppColors.success,
+                                  size: 20,
+                                ),
+                              ),
+                              title: Text(
+                                notification.message,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: notification.isRead
+                                      ? FontWeight.normal
+                                      : FontWeight.w600,
+                                ),
+                              ),
+                              subtitle: Text(
+                                _formatNotificationTimestamp(
+                                  notification.timestamp,
+                                ),
+                              ),
+                              trailing: IconButton(
+                                tooltip: 'Delete notification',
+                                onPressed: () =>
+                                    manager.deleteNotification(notification.id),
+                                icon: const Icon(Icons.delete_outline),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
+  }
+
+  String _formatNotificationTimestamp(DateTime timestamp) {
+    final local = timestamp.toLocal();
+    final month = local.month.toString().padLeft(2, '0');
+    final day = local.day.toString().padLeft(2, '0');
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '${local.year}-$month-$day $hour:$minute';
   }
 
   void _showAddRuleDialog({TriggerRule? existing}) {

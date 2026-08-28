@@ -70,6 +70,14 @@ A banker role can review the same loan applications and approve or reject them.
 - Displays monthly and total repayment.
 - Supports saving, editing, recalculating, and deleting schemes.
 
+### SQLite Persistence
+
+- EMI schemes, OPR trigger rules, and trigger notifications are stored locally with SQLite on Android, iOS, and macOS.
+- Persisted records load before the application UI starts.
+- Saved schemes and rules support insert, update, and delete operations.
+- Notifications preserve unread/read state and support individual deletion or clearing the inbox.
+- Web builds retain the same manager APIs with an in-memory fallback because standard `sqflite` does not provide browser persistence without an additional web implementation.
+
 ## User Roles and Demo Access
 
 ### SME Accounts
@@ -117,10 +125,10 @@ The Home Shell uses a `BottomNavigationBar` and an `IndexedStack`, so tab state 
 | UI | Material 3 |
 | State management | Provider `^6.1.2` and `ChangeNotifier` |
 | Chart | Flutter `CustomPainter` |
-| Data storage | In-memory collections only |
+| Data storage | SQLite for EMI, triggers, and notifications; in-memory for remaining modules |
 | Supported project targets | Android and Web project folders are included |
 
-No Firebase, database, REST API, SharedPreferences, or external chart package is currently used.
+No Firebase, REST API, SharedPreferences, or external chart package is currently used.
 
 ## Project Structure
 
@@ -130,6 +138,9 @@ lib/
 ├── core/
 │   ├── constants.dart
 │   └── mock_data.dart
+├── services/
+│   └── database/
+│       └── database_service.dart
 └── features/
     ├── onboarding/
     │   └── onboarding_screen.dart
@@ -161,7 +172,43 @@ lib/
 | `LoanManager` | Loan applications and status | `addLoanRequest`, `updateStatus`, `deleteRequest` |
 | `CalcManager` | EMI calculation schemes | `saveScheme`, `updateScheme`, `deleteScheme`, `calculateEMI` |
 
-All managers store data in memory. Restarting or hot-restarting the application resets registered users created during the session, loans, triggers, notifications, and saved calculator schemes.
+`CalcManager` and `TriggerManager` keep their existing in-memory Provider APIs while synchronizing changes to SQLite. Their persisted records load before `runApp`. Authentication and loan applications remain in memory until the later Supabase task.
+
+## SQLite Schema
+
+Database file: `bnm_sme_financing.db`
+
+```sql
+CREATE TABLE emi_schemes (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  equipmentPrice REAL NOT NULL,
+  quantity INTEGER NOT NULL,
+  interestRate REAL NOT NULL,
+  loanYears REAL NOT NULL,
+  monthlyPayment REAL NOT NULL,
+  totalPayment REAL NOT NULL
+);
+
+CREATE TABLE trigger_rules (
+  id TEXT PRIMARY KEY,
+  targetRate REAL NOT NULL,
+  comparison TEXT NOT NULL,
+  enabled INTEGER NOT NULL,
+  createdAt TEXT NOT NULL,
+  equipmentType TEXT NOT NULL
+);
+
+CREATE TABLE notifications (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL UNIQUE,
+  timestamp TEXT NOT NULL,
+  isRead INTEGER NOT NULL
+);
+```
+
+The first database version creates all three tables. No migration is needed for existing installations because the previous app did not create a database. Future schema changes must increment `DatabaseService.databaseVersion` and add an `onUpgrade` migration before release.
 
 ## Run the Project
 
@@ -178,7 +225,7 @@ flutter analyze
 flutter run
 ```
 
-To run specifically in Chrome:
+To run specifically in Chrome with the in-memory database fallback:
 
 ```bash
 flutter run -d chrome
@@ -190,7 +237,7 @@ Anyone modifying this project, including an AI assistant, must preserve these co
 
 1. Do not add `//`, `///`, or block comments to Dart source files. The assignment requires comment-free `.dart` files.
 2. Keep the interest-rate chart implemented with Flutter `CustomPainter`; do not replace it with an external chart package.
-3. Keep application data in memory. Do not introduce Firebase, SharedPreferences, a database, or a backend without approval.
+3. Keep calculator schemes, trigger rules, and trigger notifications in SQLite. Do not move these modules to a remote backend.
 4. Preserve the two roles and the role-specific Loans tab.
 5. Preserve the four-tab `BottomNavigationBar` and `IndexedStack` navigation unless a navigation redesign is requested.
 6. Avoid editing unrelated files when working on an isolated feature.
@@ -198,7 +245,7 @@ Anyone modifying this project, including an AI assistant, must preserve these co
 ## Known Limitations
 
 - Data is demonstration data and is not fetched live from BNM.
-- All runtime changes disappear when the application restarts.
+- Authentication changes and loan applications still disappear when the application restarts.
 - Onboarding is shown on every fresh app launch because its completion is not persisted.
 - Authentication and password reset are simulated locally and are not production security implementations.
 - The banker access code is hardcoded for assignment demonstration purposes.
