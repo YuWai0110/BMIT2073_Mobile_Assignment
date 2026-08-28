@@ -65,16 +65,15 @@ class _CalcScreenState extends State<CalcScreen> {
           content: const Text('Please enter a valid equipment price'),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
       return;
     }
 
-    final titleCtrl = TextEditingController(
-      text: _editingId != null ? '' : '',
-    );
+    final titleCtrl = TextEditingController(text: _editingId != null ? '' : '');
 
     showDialog(
       context: context,
@@ -101,7 +100,8 @@ class _CalcScreenState extends State<CalcScreen> {
 
               final manager = context.read<CalcManager>();
               final scheme = CalcScheme(
-                id: _editingId ??
+                id:
+                    _editingId ??
                     DateTime.now().millisecondsSinceEpoch.toString(),
                 title: title,
                 equipmentPrice: price,
@@ -122,13 +122,16 @@ class _CalcScreenState extends State<CalcScreen> {
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(_editingId != null
-                      ? '✅ Scheme updated!'
-                      : '✅ Scheme saved!'),
+                  content: Text(
+                    _editingId != null
+                        ? '✅ Scheme updated!'
+                        : '✅ Scheme saved!',
+                  ),
                   backgroundColor: AppColors.success,
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               );
             },
@@ -159,232 +162,301 @@ class _CalcScreenState extends State<CalcScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final schemes = context.watch<CalcManager>().schemes;
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildInputCard(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.calculate_outlined,
-                        color: AppColors.accentBlue, size: 22),
-                    const SizedBox(width: 8),
-                    Text(
-                      'ROI Calculator',
-                      style:
-                          Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.darkGrey,
-                              ),
+                Icon(
+                  Icons.calculate_outlined,
+                  color: AppColors.accentBlue,
+                  size: 22,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'ROI Calculator',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.darkGrey,
                     ),
-                    const Spacer(),
-                    if (_editingId != null)
-                      TextButton.icon(
-                        onPressed: () {
-                          setState(() => _editingId = null);
-                          _priceCtrl.text = '50000';
-                          _unitCtrl.text = '1';
-                          _interestRate = 4.5;
-                          _loanTermMonths = 36;
-                          _recalculate();
-                        },
-                        icon: const Icon(Icons.clear, size: 16),
-                        label: const Text('Clear Edit'),
-                        style: TextButton.styleFrom(
-                            foregroundColor: AppColors.error),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-
-                TextFormField(
-                  controller: _priceCtrl,
-                  decoration: appInputDecoration(
-                    label: 'Equipment Unit Price (RM)',
-                    hint: 'e.g. 50000',
-                    prefixIcon: Icons.precision_manufacturing,
                   ),
-                  keyboardType: TextInputType.number,
-                  onChanged: (_) => _recalculate(),
                 ),
-                const SizedBox(height: 14),
-
-                TextFormField(
-                  controller: _unitCtrl,
-                  decoration: appInputDecoration(
-                    label: 'Quantity (Units)',
-                    hint: 'e.g. 3',
-                    prefixIcon: Icons.inventory_2_outlined,
-                  ),
-                  keyboardType: TextInputType.number,
-                  onChanged: (_) => _recalculate(),
-                ),
-                const SizedBox(height: 14),
-
-                Row(
-                  children: [
-                    const Icon(Icons.percent,
-                        size: 18, color: AppColors.mediumGrey),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Annual Interest Rate: ${_interestRate.toStringAsFixed(2)}%',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.darkGrey),
-                    ),
-                  ],
-                ),
-                Slider(
-                  value: _interestRate,
-                  min: 1.0,
-                  max: 15.0,
-                  divisions: 56,
-                  activeColor: AppColors.accentBlue,
-                  label: '${_interestRate.toStringAsFixed(2)}%',
-                  onChanged: (v) {
-                    setState(() => _interestRate = v);
-                    _recalculate();
-                  },
-                ),
-                const SizedBox(height: 8),
-
-                DropdownButtonFormField<int>(
-                  initialValue: _loanTermMonths,
-                  decoration: appInputDecoration(
-                    label: 'Loan Term',
-                    prefixIcon: Icons.calendar_month,
-                  ),
-                  items: _termOptions
-                      .map((m) => DropdownMenuItem(
-                          value: m, child: Text('$m months (${m ~/ 12} yr${m >= 24 ? "s" : ""})')))
-                      .toList(),
-                  onChanged: (v) {
-                    if (v != null) {
-                      setState(() => _loanTermMonths = v);
+                if (_editingId != null)
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() => _editingId = null);
+                      _priceCtrl.text = '50000';
+                      _unitCtrl.text = '1';
+                      _interestRate = 4.5;
+                      _loanTermMonths = 36;
                       _recalculate();
-                    }
-                  },
+                    },
+                    icon: const Icon(Icons.clear, size: 16),
+                    label: const Text('Clear Edit'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _priceCtrl,
+              decoration: appInputDecoration(
+                label: 'Equipment Unit Price (RM)',
+                hint: 'e.g. 50000',
+                prefixIcon: Icons.precision_manufacturing,
+              ),
+              keyboardType: TextInputType.number,
+              onChanged: (_) => _recalculate(),
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _unitCtrl,
+              decoration: appInputDecoration(
+                label: 'Quantity (Units)',
+                hint: 'e.g. 3',
+                prefixIcon: Icons.inventory_2_outlined,
+              ),
+              keyboardType: TextInputType.number,
+              onChanged: (_) => _recalculate(),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                const Icon(
+                  Icons.percent,
+                  size: 18,
+                  color: AppColors.mediumGrey,
+                ),
+                Text(
+                  'Annual Interest Rate: ${_interestRate.toStringAsFixed(2)}%',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.darkGrey,
+                  ),
                 ),
               ],
             ),
-          ),
+            Slider(
+              value: _interestRate,
+              min: 1.0,
+              max: 15.0,
+              divisions: 56,
+              activeColor: AppColors.accentBlue,
+              label: '${_interestRate.toStringAsFixed(2)}%',
+              onChanged: (v) {
+                setState(() => _interestRate = v);
+                _recalculate();
+              },
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<int>(
+              initialValue: _loanTermMonths,
+              isExpanded: true,
+              decoration: appInputDecoration(
+                label: 'Loan Term',
+                prefixIcon: Icons.calendar_month,
+              ),
+              items: _termOptions
+                  .map(
+                    (m) => DropdownMenuItem(
+                      value: m,
+                      child: Text(
+                        '$m months (${m ~/ 12} yr${m >= 24 ? "s" : ""})',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) {
+                  setState(() => _loanTermMonths = v);
+                  _recalculate();
+                }
+              },
+            ),
+          ],
         ),
+      ),
+    );
+  }
 
-        const SizedBox(height: 12),
-
+  Widget _buildResults(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         Card(
+          margin: EdgeInsets.zero,
           color: AppColors.accentBlue.withValues(alpha: 0.04),
           child: Padding(
             padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                Text(
-                  'Calculation Results',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final stackPrimaryResults = constraints.maxWidth < 420;
+                final monthly = _ResultTile(
+                  label: 'Monthly Payment',
+                  value: 'RM ${_monthlyPayment.toStringAsFixed(2)}',
+                  icon: Icons.today,
+                  color: AppColors.accentBlue,
+                );
+                final repayment = _ResultTile(
+                  label: 'Total Repayment',
+                  value: 'RM ${_totalPayment.toStringAsFixed(2)}',
+                  icon: Icons.account_balance_wallet,
+                  color: AppColors.primaryRed,
+                );
+
+                return Column(
+                  children: [
+                    Text(
+                      'Calculation Results',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         color: AppColors.accentBlue,
                         fontWeight: FontWeight.bold,
                       ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                        child: _ResultTile(
-                            label: 'Monthly Payment',
-                            value:
-                                'RM ${_monthlyPayment.toStringAsFixed(2)}',
-                            icon: Icons.today,
-                            color: AppColors.accentBlue)),
-                    const SizedBox(width: 12),
-                    Expanded(
-                        child: _ResultTile(
-                            label: 'Total Repayment',
-                            value:
-                                'RM ${_totalPayment.toStringAsFixed(2)}',
-                            icon: Icons.account_balance_wallet,
-                            color: AppColors.primaryRed)),
+                    ),
+                    const SizedBox(height: 16),
+                    if (stackPrimaryResults) ...[
+                      monthly,
+                      const SizedBox(height: 12),
+                      repayment,
+                    ] else
+                      Row(
+                        children: [
+                          Expanded(child: monthly),
+                          const SizedBox(width: 12),
+                          Expanded(child: repayment),
+                        ],
+                      ),
+                    const SizedBox(height: 12),
+                    _ResultTile(
+                      label: 'Total Interest Payable',
+                      value: 'RM ${_totalInterest.toStringAsFixed(2)}',
+                      icon: Icons.trending_up,
+                      color: AppColors.warning,
+                    ),
                   ],
-                ),
-                const SizedBox(height: 12),
-                _ResultTile(
-                  label: 'Total Interest Payable',
-                  value: 'RM ${_totalInterest.toStringAsFixed(2)}',
-                  icon: Icons.trending_up,
-                  color: AppColors.warning,
-                ),
-              ],
+                );
+              },
             ),
           ),
         ),
-
-        const SizedBox(height: 8),
-
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _saveScheme,
-              icon: Icon(_editingId != null ? Icons.save : Icons.bookmark_add),
-              label: Text(_editingId != null
-                  ? 'Update Saved Scheme'
-                  : 'Save This Scheme'),
-            ),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          onPressed: _saveScheme,
+          icon: Icon(_editingId != null ? Icons.save : Icons.bookmark_add),
+          label: Text(
+            _editingId != null ? 'Update Saved Scheme' : 'Save This Scheme',
           ),
         ),
+      ],
+    );
+  }
 
-        const SizedBox(height: 24),
-
+  Widget _buildSavedSchemes(BuildContext context, List<CalcScheme> schemes) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         Row(
           children: [
-            const SizedBox(width: 16),
-            Icon(Icons.bookmarks_outlined,
-                color: AppColors.mediumGrey, size: 20),
+            Icon(
+              Icons.bookmarks_outlined,
+              color: AppColors.mediumGrey,
+              size: 20,
+            ),
             const SizedBox(width: 6),
-            Text(
-              'Saved Schemes (${schemes.length})',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: AppColors.mediumGrey,
-                    fontWeight: FontWeight.w600,
-                  ),
+            Expanded(
+              child: Text(
+                'Saved Schemes (${schemes.length})',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: AppColors.mediumGrey,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 8),
-
         if (schemes.isEmpty)
           Card(
+            margin: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.all(40),
               child: Center(
                 child: Column(
                   children: [
-                    Icon(Icons.bookmark_border,
-                        size: 48, color: AppColors.lightGrey),
+                    Icon(
+                      Icons.bookmark_border,
+                      size: 48,
+                      color: AppColors.lightGrey,
+                    ),
                     const SizedBox(height: 8),
-                    Text('No saved schemes yet',
-                        style: TextStyle(color: AppColors.mediumGrey)),
+                    Text(
+                      'No saved schemes yet',
+                      style: TextStyle(color: AppColors.mediumGrey),
+                    ),
                   ],
                 ),
               ),
             ),
           )
         else
-          ...schemes.reversed.map((scheme) => _SchemeCard(
-                scheme: scheme,
-                onLoad: () => _loadScheme(scheme),
-                onDelete: () =>
-                    context.read<CalcManager>().deleteScheme(scheme.id),
-              )),
+          ...schemes.reversed.map(
+            (scheme) => _SchemeCard(
+              scheme: scheme,
+              onLoad: () => _loadScheme(scheme),
+              onDelete: () =>
+                  context.read<CalcManager>().deleteScheme(scheme.id),
+            ),
+          ),
       ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final schemes = context.watch<CalcManager>().schemes;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isLandscape =
+            MediaQuery.orientationOf(context) == Orientation.landscape;
+        final useTwoPane = isLandscape && constraints.maxWidth >= 700;
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (useTwoPane)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 5, child: _buildInputCard(context)),
+                    const SizedBox(width: 16),
+                    Expanded(flex: 6, child: _buildResults(context)),
+                  ],
+                )
+              else ...[
+                _buildInputCard(context),
+                const SizedBox(height: 12),
+                _buildResults(context),
+              ],
+              const SizedBox(height: 24),
+              _buildSavedSchemes(context, schemes),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -419,17 +491,23 @@ class _ResultTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label,
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.mediumGrey,
-                        fontWeight: FontWeight.w500)),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.mediumGrey,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(value,
-                    style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: color)),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
               ],
             ),
           ),
@@ -462,30 +540,40 @@ class _SchemeCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 backgroundColor: AppColors.accentBlue.withValues(alpha: 0.1),
-                child: const Icon(Icons.bookmark,
-                    color: AppColors.accentBlue, size: 20),
+                child: const Icon(
+                  Icons.bookmark,
+                  color: AppColors.accentBlue,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(scheme.title,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 14)),
+                    Text(
+                      scheme.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       '${scheme.unitCount}x · RM ${scheme.equipmentPrice.toStringAsFixed(0)} · '
                       '${scheme.interestRate.toStringAsFixed(2)}% · ${scheme.loanTermMonths}mo',
                       style: const TextStyle(
-                          color: AppColors.mediumGrey, fontSize: 12),
+                        color: AppColors.mediumGrey,
+                        fontSize: 12,
+                      ),
                     ),
                     Text(
                       'Monthly: RM ${scheme.monthlyPayment.toStringAsFixed(2)}',
                       style: const TextStyle(
-                          color: AppColors.accentBlue,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500),
+                        color: AppColors.accentBlue,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ],
                 ),

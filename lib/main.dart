@@ -5,13 +5,13 @@ import 'core/constants.dart';
 import 'features/auth/auth_manager.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/profile_screen.dart';
+import 'features/onboarding/onboarding_screen.dart';
 import 'features/loan_approval/loan_manager.dart';
 import 'features/loan_approval/loan_screen.dart';
 import 'features/calculator_roi/calc_manager.dart';
 import 'features/calculator_roi/calc_screen.dart';
 import 'features/interest_trigger/trigger_manager.dart';
 import 'features/interest_trigger/trigger_screen.dart';
-import 'features/onboarding/onboarding_screen.dart';
 
 void main() {
   runApp(
@@ -91,10 +91,16 @@ class _HomeShellState extends State<_HomeShell> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthManager>();
     final user = auth.currentUser;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final showGreeting = screenWidth >= 520;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_tabTitles[_currentIndex]),
+        title: Text(
+          _tabTitles[_currentIndex],
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         leading: Padding(
           padding: const EdgeInsets.all(10),
           child: CircleAvatar(
@@ -108,17 +114,20 @@ class _HomeShellState extends State<_HomeShell> {
         ),
         actions: [
           if (user != null) ...[
-            Center(
-              child: Text(
-                auth.isBanker ? 'Banker' : user.fullName.split(' ').first,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: Colors.white70,
+            if (showGreeting)
+              Center(
+                child: Text(
+                  auth.isBanker ? 'Banker' : user.fullName.split(' ').first,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: Colors.white70,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
+            SizedBox(width: showGreeting ? 8 : 4),
             GestureDetector(
               onTap: () => setState(() => _currentIndex = 3),
               child: Padding(
