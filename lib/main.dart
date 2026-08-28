@@ -12,15 +12,25 @@ import 'features/calculator_roi/calc_manager.dart';
 import 'features/calculator_roi/calc_screen.dart';
 import 'features/interest_trigger/trigger_manager.dart';
 import 'features/interest_trigger/trigger_screen.dart';
+import 'services/database/database_service.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final database = DatabaseService.instance;
+  await database.initialize();
+
+  final calcManager = CalcManager(database: database);
+  final triggerManager = TriggerManager(database: database);
+  await Future.wait([calcManager.initialize(), triggerManager.initialize()]);
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthManager()),
         ChangeNotifierProvider(create: (_) => LoanManager()),
-        ChangeNotifierProvider(create: (_) => CalcManager()),
-        ChangeNotifierProvider(create: (_) => TriggerManager()),
+        ChangeNotifierProvider.value(value: calcManager),
+        ChangeNotifierProvider.value(value: triggerManager),
       ],
       child: const MainApp(),
     ),

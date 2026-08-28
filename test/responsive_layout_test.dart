@@ -67,6 +67,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     for (final size in _screenSizes) {
+      await tester.pumpWidget(const SizedBox.shrink());
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
       final auth = AuthManager();
