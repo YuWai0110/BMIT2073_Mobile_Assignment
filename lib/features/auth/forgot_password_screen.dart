@@ -14,70 +14,55 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
-  final _newPasswordCtrl = TextEditingController();
-  final _confirmCtrl = TextEditingController();
-  bool _obscureNew = true;
-  bool _obscureConfirm = true;
   bool _isLoading = false;
 
   @override
   void dispose() {
     _emailCtrl.dispose();
-    _newPasswordCtrl.dispose();
-    _confirmCtrl.dispose();
     super.dispose();
   }
 
-  void _handleReset() {
+  Future<void> _handleReset() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
+    final auth = context.read<AuthManager>();
+    final error = await auth.resetPassword(email: _emailCtrl.text);
+    if (!mounted) return;
 
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (!mounted) return;
-
-      final auth = context.read<AuthManager>();
-      final error = auth.resetPassword(
-        email: _emailCtrl.text,
-        newPassword: _newPasswordCtrl.text,
+    setState(() => _isLoading = false);
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ $error'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
       );
-
-      setState(() => _isLoading = false);
-
-      if (error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ $error'),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10)),
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('✅ Password reset email sent.'),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
           ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-                '✅ Password reset successfully! Please login with your new password.'),
-            backgroundColor: AppColors.success,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-        Navigator.pop(context);
-      }
-    });
+        ),
+      );
+      Navigator.pop(context);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.backgroundGrey,
-      appBar: AppBar(
-        title: const Text('Reset Password'),
-      ),
+      appBar: AppBar(title: const Text('Reset Password')),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -109,17 +94,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
                       Text(
                         'Forgot Password',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleLarge
-                            ?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.darkGrey,
-                            ),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.darkGrey,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Enter your email and set a new password.',
+                        'Enter your email and we will send a secure reset link.',
                         style: TextStyle(
                           color: AppColors.mediumGrey,
                           fontSize: 13,
@@ -144,62 +126,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 14),
-
-                      TextFormField(
-                        controller: _newPasswordCtrl,
-                        obscureText: _obscureNew,
-                        decoration: appInputDecoration(
-                          label: 'New Password',
-                          prefixIcon: Icons.lock_outline,
-                        ).copyWith(
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscureNew
-                                  ? Icons.visibility_off
-                                  : Icons.visibility,
-                              color: AppColors.mediumGrey,
-                            ),
-                            onPressed: () =>
-                                setState(() => _obscureNew = !_obscureNew),
-                          ),
-                        ),
-                        validator: (v) {
-                          if (v == null || v.isEmpty) return 'Required';
-                          if (v.length < 6) {
-                            return 'Password must be at least 6 characters';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 14),
-
-                      TextFormField(
-                        controller: _confirmCtrl,
-                        obscureText: _obscureConfirm,
-                        decoration: appInputDecoration(
-                          label: 'Confirm New Password',
-                          prefixIcon: Icons.lock_outline,
-                        ).copyWith(
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscureConfirm
-                                  ? Icons.visibility_off
-                                  : Icons.visibility,
-                              color: AppColors.mediumGrey,
-                            ),
-                            onPressed: () => setState(
-                                () => _obscureConfirm = !_obscureConfirm),
-                          ),
-                        ),
-                        validator: (v) {
-                          if (v == null || v.isEmpty) return 'Required';
-                          if (v != _newPasswordCtrl.text) {
-                            return 'Passwords do not match';
-                          }
-                          return null;
-                        },
-                      ),
                       const SizedBox(height: 24),
 
                       SizedBox(
@@ -216,7 +142,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                   ),
                                 )
                               : const Icon(Icons.lock_reset),
-                          label: const Text('Reset Password'),
+                          label: const Text('Send Reset Email'),
                         ),
                       ),
                       const SizedBox(height: 16),

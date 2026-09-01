@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
+import '../../core/responsive_input_dialog.dart';
 import 'calc_manager.dart';
 
 class CalcScreen extends StatefulWidget {
@@ -55,7 +56,7 @@ class _CalcScreenState extends State<CalcScreen> {
     });
   }
 
-  void _saveScheme() {
+  Future<void> _saveScheme() async {
     final price = double.tryParse(_priceCtrl.text) ?? 0;
     final units = int.tryParse(_unitCtrl.text) ?? 1;
 
@@ -73,71 +74,41 @@ class _CalcScreenState extends State<CalcScreen> {
       return;
     }
 
-    final titleCtrl = TextEditingController(text: _editingId != null ? '' : '');
-
-    showDialog(
+    final editingId = _editingId;
+    final isEditing = editingId != null;
+    final title = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(_editingId != null ? 'Update Scheme' : 'Save Scheme'),
-        content: TextField(
-          controller: titleCtrl,
-          autofocus: true,
-          decoration: appInputDecoration(
-            label: 'Scheme Name',
-            hint: 'e.g. 2026 Factory-A Robotic Arm Plan',
-            prefixIcon: Icons.bookmark_border,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final title = titleCtrl.text.trim();
-              if (title.isEmpty) return;
+      useSafeArea: false,
+      builder: (_) => _SaveSchemeDialog(isEditing: isEditing),
+    );
 
-              final manager = context.read<CalcManager>();
-              final scheme = CalcScheme(
-                id:
-                    _editingId ??
-                    DateTime.now().millisecondsSinceEpoch.toString(),
-                title: title,
-                equipmentPrice: price,
-                unitCount: units,
-                loanTermMonths: _loanTermMonths,
-                interestRate: _interestRate,
-                monthlyPayment: _monthlyPayment,
-                totalPayment: _totalPayment,
-              );
+    if (!mounted || title == null) return;
 
-              if (_editingId != null) {
-                manager.updateScheme(scheme);
-                setState(() => _editingId = null);
-              } else {
-                manager.saveScheme(scheme);
-              }
+    final manager = context.read<CalcManager>();
+    final scheme = CalcScheme(
+      id: editingId ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      title: title,
+      equipmentPrice: price,
+      unitCount: units,
+      loanTermMonths: _loanTermMonths,
+      interestRate: _interestRate,
+      monthlyPayment: _monthlyPayment,
+      totalPayment: _totalPayment,
+    );
 
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    _editingId != null
-                        ? '✅ Scheme updated!'
-                        : '✅ Scheme saved!',
-                  ),
-                  backgroundColor: AppColors.success,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              );
-            },
-            child: Text(_editingId != null ? 'Update' : 'Save'),
-          ),
-        ],
+    if (isEditing) {
+      manager.updateScheme(scheme);
+      setState(() => _editingId = null);
+    } else {
+      manager.saveScheme(scheme);
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(isEditing ? '✅ Scheme updated!' : '✅ Scheme saved!'),
+        backgroundColor: AppColors.success,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -457,6 +428,67 @@ class _CalcScreenState extends State<CalcScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+class _SaveSchemeDialog extends StatefulWidget {
+  final bool isEditing;
+
+  const _SaveSchemeDialog({required this.isEditing});
+
+  @override
+  State<_SaveSchemeDialog> createState() => _SaveSchemeDialogState();
+}
+
+class _SaveSchemeDialogState extends State<_SaveSchemeDialog> {
+  final TextEditingController _titleController = TextEditingController();
+  final FocusNode _titleFocusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _titleFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final title = _titleController.text.trim();
+    if (title.isEmpty) return;
+    Navigator.of(context).pop(title);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ResponsiveInputDialog(
+      title: Text(widget.isEditing ? 'Update Scheme' : 'Save Scheme'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _titleController,
+            focusNode: _titleFocusNode,
+            autofocus: true,
+            decoration: appInputDecoration(
+              label: 'Scheme Name',
+              hint: 'e.g. 2026 Factory-A Robotic Arm Plan',
+              prefixIcon: Icons.bookmark_border,
+            ),
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submit(),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _submit,
+          child: Text(widget.isEditing ? 'Update' : 'Save'),
+        ),
+      ],
     );
   }
 }

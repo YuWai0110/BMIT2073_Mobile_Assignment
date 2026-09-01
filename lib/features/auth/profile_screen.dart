@@ -35,25 +35,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
-  void _toggleEdit() {
+  Future<void> _toggleEdit() async {
     if (_isEditing) {
       final auth = context.read<AuthManager>();
-      auth.updateProfile(
+      final error = await auth.updateProfile(
         fullName: _nameCtrl.text,
         companyName: _companyCtrl.text,
         phone: _phoneCtrl.text,
       );
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('✅ Profile updated!'),
-          backgroundColor: AppColors.success,
+          content: Text(error == null ? '✅ Profile updated!' : '❌ $error'),
+          backgroundColor: error == null ? AppColors.success : AppColors.error,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
         ),
       );
+      if (error != null) return;
     }
     setState(() => _isEditing = !_isEditing);
   }
@@ -70,9 +72,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              final auth = context.read<AuthManager>();
               Navigator.pop(ctx);
-              context.read<AuthManager>().logout();
+              await auth.logout();
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             child: const Text('Logout'),
