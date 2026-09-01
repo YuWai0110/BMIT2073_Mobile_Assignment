@@ -34,50 +34,47 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
-  void _handleSignUp() {
+  Future<void> _handleSignUp() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
+    final auth = context.read<AuthManager>();
+    final error = await auth.signUp(
+      fullName: _nameCtrl.text,
+      email: _emailCtrl.text,
+      password: _passwordCtrl.text,
+      companyName: _companyCtrl.text,
+      phone: _phoneCtrl.text,
+    );
+    if (!mounted) return;
 
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (!mounted) return;
-
-      final auth = context.read<AuthManager>();
-      final error = auth.signUp(
-        fullName: _nameCtrl.text,
-        email: _emailCtrl.text,
-        password: _passwordCtrl.text,
-        companyName: _companyCtrl.text,
-        phone: _phoneCtrl.text,
+    setState(() => _isLoading = false);
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ $error'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
       );
-
-      setState(() => _isLoading = false);
-
-      if (error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ $error'),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            '✅ Account created. Check your email if confirmation is enabled.',
           ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('✅ Account created successfully!'),
-            backgroundColor: AppColors.success,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
           ),
-        );
-        Navigator.pop(context);
-      }
-    });
+        ),
+      );
+      Navigator.pop(context);
+    }
   }
 
   Widget _buildIntro(BuildContext context) {

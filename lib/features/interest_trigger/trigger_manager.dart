@@ -48,9 +48,10 @@ class TriggerRule {
     );
   }
 
-  Map<String, Object?> toMap() {
+  Map<String, Object?> toMap(String userId) {
     return {
       'id': id,
+      'user_id': userId,
       'targetRate': targetOPR,
       'comparison': comparison,
       'enabled': isEnabled ? 1 : 0,
@@ -115,6 +116,7 @@ class TriggerManager extends ChangeNotifier {
   final List<TriggerNotification> _notifications = [];
   Future<void> _pendingWrite = Future.value();
   Future<void>? _initialization;
+  String? _currentUserId;
   String? _persistenceError;
 
   List<TriggerRule> get rules => List.unmodifiable(_rules);
@@ -126,53 +128,77 @@ class TriggerManager extends ChangeNotifier {
   int get unreadCount => _notifications.where((item) => !item.isRead).length;
   String? get persistenceError => _persistenceError;
 
-  Future<void> initialize() {
-    return _initialization ??= _loadPersistedData();
+  Future<void> initialize({String? userId}) {
+    return _initialization ??= _loadPersistedData(userId);
   }
 
-  Future<void> _loadPersistedData() async {
-    final ruleRows = await _database.getTriggerRules();
+  Future<void> _loadPersistedData(String? userId) async {
+    _currentUserId = userId;
     final notificationRows = await _database.getNotifications();
-    _rules
-      ..clear()
-      ..addAll(ruleRows.map(TriggerRule.fromMap));
     _notifications
       ..clear()
       ..addAll(notificationRows.map(TriggerNotification.fromMap));
+    await _loadRulesForUser(userId);
+  }
+
+  Future<void> setUser(String? userId) async {
+    await initialize();
+    await _pendingWrite;
+    if (_currentUserId == userId) return;
+    _currentUserId = userId;
+    await _loadRulesForUser(userId);
+  }
+
+  Future<void> _loadRulesForUser(String? userId) async {
+    final ruleRows = userId == null
+        ? <Map<String, Object?>>[]
+        : await _database.getTriggerRules(userId);
+    if (_currentUserId != userId) return;
+    _rules
+      ..clear()
+      ..addAll(ruleRows.map(TriggerRule.fromMap));
     notifyListeners();
   }
 
   void addRule(TriggerRule rule) {
+    final userId = _currentUserId;
+    if (userId == null) return;
     _rules.add(rule);
     notifyListeners();
-    final values = rule.toMap();
+    final values = rule.toMap(userId);
     _queueWrite(() => _database.upsertTriggerRule(values));
   }
 
   void editRule(TriggerRule updated) {
+    final userId = _currentUserId;
+    if (userId == null) return;
     final index = _rules.indexWhere((rule) => rule.id == updated.id);
     if (index != -1) {
       _rules[index] = updated;
       notifyListeners();
-      final values = updated.toMap();
+      final values = updated.toMap(userId);
       _queueWrite(() => _database.upsertTriggerRule(values));
     }
   }
 
   void toggleRule(String id) {
+    final userId = _currentUserId;
+    if (userId == null) return;
     final index = _rules.indexWhere((rule) => rule.id == id);
     if (index != -1) {
       _rules[index].isEnabled = !_rules[index].isEnabled;
       notifyListeners();
-      final values = _rules[index].toMap();
+      final values = _rules[index].toMap(userId);
       _queueWrite(() => _database.upsertTriggerRule(values));
     }
   }
 
   void removeRule(String id) {
+    final userId = _currentUserId;
+    if (userId == null) return;
     _rules.removeWhere((rule) => rule.id == id);
     notifyListeners();
-    _queueWrite(() => _database.deleteTriggerRule(id));
+    _queueWrite(() => _database.deleteTriggerRule(id, userId));
   }
 
   List<String> checkTriggers(double currentOPR, int year) {

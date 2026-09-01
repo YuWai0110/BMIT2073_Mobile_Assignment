@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
+import '../../core/responsive_input_dialog.dart';
 import 'auth_manager.dart';
 import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
@@ -20,9 +21,24 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordCtrl = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _noticeScheduled = false;
 
   int _tapCount = 0;
   Timer? _tapTimer;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_noticeScheduled) return;
+    _noticeScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final notice = context.read<AuthManager>().takeNotice();
+      if (notice != null) {
+        _showError(notice);
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -69,115 +85,53 @@ class _LoginScreenState extends State<LoginScreen> {
     _showBankerDialog();
   }
 
-  void _showBankerDialog() {
-    final codeCtrl = TextEditingController();
-    String? errorText;
-
-    showDialog(
+  Future<void> _showBankerDialog() async {
+    final credentials = await showDialog<_BankerCredentials>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Row(
-            children: [
-              Icon(
-                Icons.account_balance,
-                color: AppColors.bankerTeal,
-                size: 24,
-              ),
-              const SizedBox(width: 8),
-              const Text('Banker Access'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Enter the banker access code to continue.',
-                style: TextStyle(
-                  color: AppColors.mediumGrey,
-                  fontSize: 13,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: codeCtrl,
-                autofocus: true,
-                obscureText: true,
-                decoration: appInputDecoration(
-                  label: 'Access Code',
-                  hint: 'Enter secret code',
-                  prefixIcon: Icons.vpn_key,
-                ).copyWith(errorText: errorText),
-                onSubmitted: (_) {
-                  final auth = context.read<AuthManager>();
-                  final result = auth.bankerLogin(codeCtrl.text);
-                  if (result != null) {
-                    setDialogState(() => errorText = result);
-                  } else {
-                    Navigator.pop(ctx);
-                  }
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton.icon(
-              onPressed: () {
-                final auth = context.read<AuthManager>();
-                final result = auth.bankerLogin(codeCtrl.text);
-                if (result != null) {
-                  setDialogState(() => errorText = result);
-                } else {
-                  Navigator.pop(ctx);
-                }
-              },
-              icon: const Icon(Icons.login, size: 18),
-              label: const Text('Enter'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.bankerTeal,
-              ),
-            ),
-          ],
-        ),
-      ),
+      useSafeArea: false,
+      builder: (_) => const _BankerLoginDialog(),
     );
+
+    if (!mounted || credentials == null) return;
+    setState(() => _isLoading = true);
+    final result = await context.read<AuthManager>().bankerLogin(
+      email: credentials.email,
+      password: credentials.password,
+    );
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    if (result != null) {
+      _showError(result);
+    }
   }
 
-  void _handleLogin() {
+  Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
+    final auth = context.read<AuthManager>();
+    final error = await auth.login(
+      email: _emailCtrl.text,
+      password: _passwordCtrl.text,
+    );
+    if (!mounted) return;
 
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (!mounted) return;
+    setState(() => _isLoading = false);
+    if (error != null) {
+      _showError(error);
+    }
+  }
 
-      final auth = context.read<AuthManager>();
-      final error = auth.login(
-        email: _emailCtrl.text,
-        password: _passwordCtrl.text,
-      );
-
-      setState(() => _isLoading = false);
-
-      if (error != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ $error'),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
-      }
-    });
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('❌ $message'),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   Widget _buildBrand(BuildContext context) {
@@ -403,9 +357,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 ActionChip(
                   avatar: const Icon(Icons.account_balance, size: 16),
-                  label: const Text('Banker (Quick)'),
+                  label: const Text('Banker Demo'),
                   onPressed: () {
-                    context.read<AuthManager>().bankerLogin('BNM2026');
+                    setState(() {
+                      _emailCtrl.text = 'banker@bnm.gov.my';
+                      _passwordCtrl.text = 'password123';
+                    });
                   },
                 ),
               ],
@@ -488,6 +445,117 @@ class _LoginScreenState extends State<LoginScreen> {
           },
         ),
       ),
+    );
+  }
+}
+
+class _BankerCredentials {
+  final String email;
+  final String password;
+
+  const _BankerCredentials(this.email, this.password);
+}
+
+class _BankerLoginDialog extends StatefulWidget {
+  const _BankerLoginDialog();
+
+  @override
+  State<_BankerLoginDialog> createState() => _BankerLoginDialogState();
+}
+
+class _BankerLoginDialogState extends State<_BankerLoginDialog> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _emailFocusNode = FocusNode();
+  final _passwordFocusNode = FocusNode();
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _emailFocusNode.dispose();
+    _passwordFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_emailController.text.trim().isEmpty ||
+        _passwordController.text.isEmpty) {
+      setState(() => _errorText = 'Email and password are required.');
+      return;
+    }
+    Navigator.of(context).pop(
+      _BankerCredentials(
+        _emailController.text.trim(),
+        _passwordController.text,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ResponsiveInputDialog(
+      title: Row(
+        children: [
+          Icon(Icons.account_balance, color: AppColors.bankerTeal, size: 24),
+          const SizedBox(width: 8),
+          const Expanded(child: Text('Banker Access')),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Sign in with a Supabase account that has the banker role.',
+            style: TextStyle(
+              color: AppColors.mediumGrey,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _emailController,
+            focusNode: _emailFocusNode,
+            autofocus: true,
+            decoration: appInputDecoration(
+              label: 'Banker Email',
+              hint: 'banker@example.com',
+              prefixIcon: Icons.email_outlined,
+            ),
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            onSubmitted: (_) => _passwordFocusNode.requestFocus(),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _passwordController,
+            focusNode: _passwordFocusNode,
+            obscureText: true,
+            decoration: appInputDecoration(
+              label: 'Password',
+              prefixIcon: Icons.lock_outline,
+            ).copyWith(errorText: _errorText),
+            onSubmitted: (_) => _submit(),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton.icon(
+          onPressed: _submit,
+          icon: const Icon(Icons.login, size: 18),
+          label: const Text('Enter'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.bankerTeal,
+          ),
+        ),
+      ],
     );
   }
 }

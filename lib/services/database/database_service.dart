@@ -11,11 +11,11 @@ abstract class LocalDatabase {
 
   Future<void> deleteEmiScheme(String id);
 
-  Future<List<Map<String, Object?>>> getTriggerRules();
+  Future<List<Map<String, Object?>>> getTriggerRules(String userId);
 
   Future<void> upsertTriggerRule(Map<String, Object?> values);
 
-  Future<void> deleteTriggerRule(String id);
+  Future<void> deleteTriggerRule(String id, String userId);
 
   Future<List<Map<String, Object?>>> getNotifications();
 
@@ -34,7 +34,8 @@ class DatabaseService implements LocalDatabase {
   static final DatabaseService instance = DatabaseService._();
 
   static const String databaseName = 'bnm_sme_financing.db';
-  static const int databaseVersion = 1;
+  static const int databaseVersion = 2;
+  static const String legacyTriggerOwner = '__legacy__';
   static const String emiSchemesTable = 'emi_schemes';
   static const String triggerRulesTable = 'trigger_rules';
   static const String notificationsTable = 'notifications';
@@ -55,6 +56,7 @@ class DatabaseService implements LocalDatabase {
       path.join(databasesPath, databaseName),
       version: databaseVersion,
       onCreate: _createSchema,
+      onUpgrade: _upgradeSchema,
     );
   }
 
@@ -75,6 +77,7 @@ class DatabaseService implements LocalDatabase {
     await database.execute('''
       CREATE TABLE $triggerRulesTable (
         id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
         targetRate REAL NOT NULL,
         comparison TEXT NOT NULL,
         enabled INTEGER NOT NULL,
@@ -92,6 +95,28 @@ class DatabaseService implements LocalDatabase {
         isRead INTEGER NOT NULL
       )
     ''');
+
+    await database.execute(
+      'CREATE INDEX idx_trigger_rules_user_id '
+      'ON $triggerRulesTable(user_id)',
+    );
+  }
+
+  Future<void> _upgradeSchema(
+    Database database,
+    int oldVersion,
+    int newVersion,
+  ) async {
+    if (oldVersion < 2) {
+      await database.execute(
+        "ALTER TABLE $triggerRulesTable ADD COLUMN user_id TEXT NOT NULL "
+        "DEFAULT '$legacyTriggerOwner'",
+      );
+      await database.execute(
+        'CREATE INDEX idx_trigger_rules_user_id '
+        'ON $triggerRulesTable(user_id)',
+      );
+    }
   }
 
   Future<Database> get _readyDatabase async {
@@ -137,18 +162,27 @@ class DatabaseService implements LocalDatabase {
   }
 
   @override
-  Future<List<Map<String, Object?>>> getTriggerRules() async {
+  Future<List<Map<String, Object?>>> getTriggerRules(String userId) async {
     if (kIsWeb) {
-      return _webTriggerRules.values.map(Map<String, Object?>.from).toList();
+      return _webTriggerRules.values
+          .where((row) => row['user_id'] == userId)
+          .map(Map<String, Object?>.from)
+          .toList();
     }
     final database = await _readyDatabase;
-    return database.query(triggerRulesTable, orderBy: 'createdAt ASC');
+    return database.query(
+      triggerRulesTable,
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      orderBy: 'createdAt ASC',
+    );
   }
 
   @override
   Future<void> upsertTriggerRule(Map<String, Object?> values) async {
     if (kIsWeb) {
-      _webTriggerRules[values['id']! as String] = Map.from(values);
+      final key = '${values['user_id']}:${values['id']}';
+      _webTriggerRules[key] = Map.from(values);
       return;
     }
     final database = await _readyDatabase;
@@ -160,13 +194,17 @@ class DatabaseService implements LocalDatabase {
   }
 
   @override
-  Future<void> deleteTriggerRule(String id) async {
+  Future<void> deleteTriggerRule(String id, String userId) async {
     if (kIsWeb) {
-      _webTriggerRules.remove(id);
+      _webTriggerRules.remove('$userId:$id');
       return;
     }
     final database = await _readyDatabase;
-    await database.delete(triggerRulesTable, where: 'id = ?', whereArgs: [id]);
+    await database.delete(
+      triggerRulesTable,
+      where: 'id = ? AND user_id = ?',
+      whereArgs: [id, userId],
+    );
   }
 
   @override

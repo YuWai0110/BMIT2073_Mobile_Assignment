@@ -39,12 +39,12 @@ A banker role can review the same loan applications and approve or reject them.
 
 ### Authentication and Profile
 
-- SME login and registration.
-- Forgot-password and password-reset flow.
-- Two pre-populated demonstration accounts.
-- Profile display and editing.
+- Supabase email/password registration and login.
+- Password-reset emails through Supabase Auth.
+- Persisted Supabase sessions restored at app startup.
+- Cloud profile display and editing with owner-only Row Level Security.
 - Logout and auth-gated routing.
-- Hidden banker login accessed from the login logo.
+- Hidden Banker login accessed from the login logo.
 
 ### Interest Rate Monitor
 
@@ -59,9 +59,11 @@ A banker role can review the same loan applications and approve or reject them.
 
 - SME users can submit equipment financing applications.
 - Applications contain company, equipment, amount, and interest-rate details.
-- SME users can view application status and remove applications.
+- SME users can view only their own application status.
 - Banker users see a review interface instead of the SME submission form.
-- Bankers can approve or reject pending applications.
+- Bankers can view all applications, approve or reject pending applications,
+  and remove applications.
+- Loan applications and status changes persist in Supabase.
 
 ### ROI / EMI Calculator
 
@@ -82,18 +84,17 @@ A banker role can review the same loan applications and approve or reject them.
 
 ### SME Accounts
 
-| Email | Password | Company |
-|---|---|---|
-| `sme@techvision.com` | `password123` | TechVision Automation Sdn Bhd |
-| `demo@sme.my` | `password123` | Smart Robotics Industry |
+The Login screen keeps two quick-demo buttons for convenient form filling. The
+matching users must first be created in Supabase; they are no longer local mock
+accounts.
 
 ### Banker Access
 
 The banker entry is hidden on the Login screen:
 
 - Tap the BNM logo seven times within the tap sequence, or long-press it for three seconds.
-- Enter the demonstration access code `BNM2026`.
-- `AuthManager.isBanker` determines whether the Loans tab shows the SME or banker interface.
+- Sign in with a Supabase user whose protected `app_metadata.role` is `banker`.
+- `AuthManager.isBanker` reads that protected role and determines whether the Loans tab shows the SME or Banker interface.
 
 ## Navigation Flow
 
@@ -125,10 +126,11 @@ The Home Shell uses a `BottomNavigationBar` and an `IndexedStack`, so tab state 
 | UI | Material 3 |
 | State management | Provider `^6.1.2` and `ChangeNotifier` |
 | Chart | Flutter `CustomPainter` |
-| Data storage | SQLite for EMI, triggers, and notifications; in-memory for remaining modules |
+| Cloud backend | Supabase Auth and Postgres for profiles and loan applications |
+| Local data storage | SQLite for EMI schemes, triggers, and notifications |
 | Supported project targets | Android and Web project folders are included |
 
-No Firebase, REST API, SharedPreferences, or external chart package is currently used.
+No Firebase, SharedPreferences, or external chart package is used.
 
 ## Project Structure
 
@@ -139,8 +141,13 @@ lib/
 │   ├── constants.dart
 │   └── mock_data.dart
 ├── services/
-│   └── database/
-│       └── database_service.dart
+│   ├── database/
+│   │   └── database_service.dart
+│   └── supabase/
+│       ├── supabase_service.dart
+│       ├── auth_repository.dart
+│       ├── profile_repository.dart
+│       └── loan_repository.dart
 └── features/
     ├── onboarding/
     │   └── onboarding_screen.dart
@@ -167,12 +174,16 @@ lib/
 
 | Manager | Main responsibility | Important operations |
 |---|---|---|
-| `AuthManager` | Accounts, session, profile, and role | `signUp`, `login`, `bankerLogin`, `logout`, `updateProfile`, `resetPassword` |
+| `AuthManager` | Supabase session, profile, and role | `signUp`, `login`, `bankerLogin`, `logout`, `updateProfile`, `resetPassword` |
 | `TriggerManager` | OPR rules and notifications | `addRule`, `editRule`, `toggleRule`, `removeRule`, `checkTriggers`, `clearInbox` |
 | `LoanManager` | Loan applications and status | `addLoanRequest`, `updateStatus`, `deleteRequest` |
 | `CalcManager` | EMI calculation schemes | `saveScheme`, `updateScheme`, `deleteScheme`, `calculateEMI` |
 
-`CalcManager` and `TriggerManager` keep their existing in-memory Provider APIs while synchronizing changes to SQLite. Their persisted records load before `runApp`. Authentication and loan applications remain in memory until the later Supabase task.
+`CalcManager` and `TriggerManager` keep their existing Provider APIs while synchronizing changes to SQLite. `AuthManager` and `LoanManager` keep business state in ChangeNotifier while their repositories read and write Supabase. SQLite and Supabase data are loaded before `runApp`.
+
+## Supabase Integration
+
+The app reads `SUPABASE_URL` and `SUPABASE_ANON_KEY` from the Git-ignored `.env` asset. Only a frontend-safe Publishable or legacy Anon Key belongs there. The complete schema, indexes, grants, triggers, and RLS policies are in `supabase/schema.sql`; setup and migration instructions are in `SUPABASE_SETUP.md`.
 
 ## SQLite Schema
 
@@ -245,10 +256,9 @@ Anyone modifying this project, including an AI assistant, must preserve these co
 ## Known Limitations
 
 - Data is demonstration data and is not fetched live from BNM.
-- Authentication changes and loan applications still disappear when the application restarts.
 - Onboarding is shown on every fresh app launch because its completion is not persisted.
-- Authentication and password reset are simulated locally and are not production security implementations.
-- The banker access code is hardcoded for assignment demonstration purposes.
+- The two quick-demo credentials work only after matching Supabase users are created.
+- Password-reset email redirects must be configured in the Supabase Auth URL settings for the selected test environment.
 
 ## Guidance for AI Assistants
 

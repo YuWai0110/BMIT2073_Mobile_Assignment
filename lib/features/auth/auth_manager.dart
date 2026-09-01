@@ -1,10 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../services/supabase/auth_repository.dart';
+import '../../services/supabase/profile_repository.dart';
+import '../../services/supabase/supabase_service.dart';
 
 class UserAccount {
   final String id;
   String fullName;
-  String email;
-  String password;
+  final String email;
   String companyName;
   String phone;
 
@@ -12,31 +18,31 @@ class UserAccount {
     required this.id,
     required this.fullName,
     required this.email,
-    required this.password,
     this.companyName = '',
     this.phone = '',
   });
 
-  UserAccount copyWith({
-    String? id,
-    String? fullName,
-    String? email,
-    String? password,
-    String? companyName,
-    String? phone,
-  }) {
+  factory UserAccount.fromProfile(User user, Map<String, dynamic>? profile) {
     return UserAccount(
-      id: id ?? this.id,
-      fullName: fullName ?? this.fullName,
-      email: email ?? this.email,
-      password: password ?? this.password,
-      companyName: companyName ?? this.companyName,
-      phone: phone ?? this.phone,
+      id: user.id,
+      fullName:
+          profile?['full_name'] as String? ??
+          user.userMetadata?['full_name'] as String? ??
+          'SME User',
+      email: profile?['email'] as String? ?? user.email ?? '',
+      companyName:
+          profile?['company_name'] as String? ??
+          user.userMetadata?['company_name'] as String? ??
+          '',
+      phone:
+          profile?['phone'] as String? ??
+          user.userMetadata?['phone'] as String? ??
+          '',
     );
   }
 
   String get initials {
-    final parts = fullName.trim().split(' ');
+    final parts = fullName.trim().split(RegExp(r'\s+'));
     if (parts.length >= 2) {
       return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
     }
@@ -45,153 +51,276 @@ class UserAccount {
 }
 
 class AuthManager extends ChangeNotifier {
-  final List<UserAccount> _registeredUsers = [
-    UserAccount(
-      id: 'demo_user_1',
-      fullName: 'Ahmad Bin Hassan',
-      email: 'sme@techvision.com',
-      password: 'password123',
-      companyName: 'TechVision Automation Sdn Bhd',
-      phone: '+60-12-345-6789',
-    ),
-    UserAccount(
-      id: 'demo_user_2',
-      fullName: 'Lee Wei Ling',
-      email: 'demo@sme.my',
-      password: 'password123',
-      companyName: 'Smart Robotics Industry',
-      phone: '+60-16-987-6543',
-    ),
-  ];
-
+  final AuthRepository? _authRepository;
+  final ProfileRepository? _profileRepository;
+  final Future<void> Function(UserAccount?)? _authChangedCallback;
+  StreamSubscription<AuthState>? _authSubscription;
   UserAccount? _currentUser;
-
   bool _isBanker = false;
+  bool _isInitialized = false;
+  bool _isAuthenticating = false;
+  String? _notice;
 
-  static const String bankerAccessCode = 'BNM2026';
+  AuthManager(
+    this._authRepository,
+    this._profileRepository, {
+    Future<void> Function(UserAccount?)? onAuthenticationChanged,
+  }) : _authChangedCallback = onAuthenticationChanged;
+
+  AuthManager.forTesting({bool loggedIn = false, bool banker = false})
+    : _authRepository = null,
+      _profileRepository = null,
+      _authChangedCallback = null {
+    if (loggedIn) {
+      _currentUser = UserAccount(
+        id: banker ? 'banker_test' : 'sme_test',
+        fullName: banker ? 'BNM Banker' : 'Test SME User',
+        email: banker ? 'banker@example.com' : 'sme@example.com',
+        companyName: banker ? 'Bank Negara Malaysia' : 'Test Company',
+        phone: '+60-12-345-6789',
+      );
+      _isBanker = banker;
+    }
+  }
 
   UserAccount? get currentUser => _currentUser;
   bool get isLoggedIn => _currentUser != null;
   bool get isBanker => _isBanker;
-  List<UserAccount> get registeredUsers => List.unmodifiable(_registeredUsers);
+  bool get isInitialized => _isInitialized;
 
-  String? signUp({
+  String? takeNotice() {
+    final notice = _notice;
+    _notice = null;
+    return notice;
+  }
+
+  Future<void> initialize() async {
+    final repository = _authRepository;
+    if (repository == null) {
+      _isInitialized = true;
+      return;
+    }
+
+    try {
+      final user = await repository.restoreUser();
+      if (user != null) {
+        await _loadUser(user);
+      }
+    } catch (error) {
+      _notice = _messageFor(error);
+      _currentUser = null;
+      _isBanker = false;
+    }
+
+    _authSubscription = repository.authStateChanges.listen((state) {
+      unawaited(_handleAuthState(state));
+    });
+    _isInitialized = true;
+    notifyListeners();
+  }
+
+  Future<String?> signUp({
     required String fullName,
     required String email,
     required String password,
     String companyName = '',
     String phone = '',
-  }) {
-    final exists = _registeredUsers.any(
-      (u) => u.email.toLowerCase() == email.toLowerCase(),
-    );
-    if (exists) {
-      return 'An account with this email already exists.';
+  }) async {
+    final repository = _authRepository;
+    if (repository == null) return 'Supabase is not configured.';
+
+    _isAuthenticating = true;
+    try {
+      final response = await repository.signUp(
+        fullName: fullName.trim(),
+        email: email.trim().toLowerCase(),
+        password: password,
+        companyName: companyName.trim(),
+        phone: phone.trim(),
+      );
+      if (response.session != null && response.user != null) {
+        await _loadUser(response.user!);
+        await _notifyAuthenticationChanged();
+      }
+      return null;
+    } catch (error) {
+      return _messageFor(error);
+    } finally {
+      _isAuthenticating = false;
     }
-
-    final user = UserAccount(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      fullName: fullName.trim(),
-      email: email.trim().toLowerCase(),
-      password: password,
-      companyName: companyName.trim(),
-      phone: phone.trim(),
-    );
-
-    _registeredUsers.add(user);
-    _currentUser = user;
-    _isBanker = false;
-    notifyListeners();
-    return null;
   }
 
-  String? login({
+  Future<String?> login({
     required String email,
     required String password,
-  }) {
-    final trimmedEmail = email.trim().toLowerCase();
+  }) async {
+    final repository = _authRepository;
+    if (repository == null) return 'Supabase is not configured.';
 
-    final index = _registeredUsers.indexWhere(
-      (u) => u.email == trimmedEmail,
-    );
-
-    if (index == -1) {
-      return 'No account found with this email.';
+    _isAuthenticating = true;
+    try {
+      final response = await repository.signIn(
+        email: email.trim().toLowerCase(),
+        password: password,
+      );
+      final user = response.user;
+      if (user == null) return 'Unable to sign in. Please try again.';
+      await _loadUser(user);
+      await _notifyAuthenticationChanged();
+      return null;
+    } catch (error) {
+      return _messageFor(error);
+    } finally {
+      _isAuthenticating = false;
     }
-
-    if (_registeredUsers[index].password != password) {
-      return 'Incorrect password.';
-    }
-
-    _currentUser = _registeredUsers[index];
-    _isBanker = false;
-    notifyListeners();
-    return null;
   }
 
-  String? bankerLogin(String code) {
-    if (code.trim() != bankerAccessCode) {
-      return 'Invalid access code.';
+  Future<String?> bankerLogin({
+    required String email,
+    required String password,
+  }) async {
+    final repository = _authRepository;
+    if (repository == null) return 'Supabase is not configured.';
+
+    _isAuthenticating = true;
+    try {
+      final response = await repository.signIn(
+        email: email.trim().toLowerCase(),
+        password: password,
+      );
+      final user = response.user;
+      if (user == null) return 'Unable to sign in. Please try again.';
+      if (!repository.isBanker(user)) {
+        await repository.signOut();
+        return 'This account does not have banker access.';
+      }
+      await _loadUser(user);
+      await _notifyAuthenticationChanged();
+      return null;
+    } catch (error) {
+      return _messageFor(error);
+    } finally {
+      _isAuthenticating = false;
     }
-
-    _currentUser = UserAccount(
-      id: 'banker_001',
-      fullName: 'BNM Banker',
-      email: 'banker@bnm.gov.my',
-      password: '',
-      companyName: 'Bank Negara Malaysia',
-      phone: '+60-3-2698-8044',
-    );
-    _isBanker = true;
-    notifyListeners();
-    return null;
   }
 
-  void logout() {
-    _currentUser = null;
-    _isBanker = false;
-    notifyListeners();
+  Future<void> logout() async {
+    final repository = _authRepository;
+    _isAuthenticating = true;
+    try {
+      if (repository != null) {
+        await repository.signOut();
+      }
+      _currentUser = null;
+      _isBanker = false;
+      notifyListeners();
+      await _notifyAuthenticationChanged();
+    } finally {
+      _isAuthenticating = false;
+    }
   }
 
-  void updateProfile({
+  Future<String?> updateProfile({
     String? fullName,
     String? companyName,
     String? phone,
-  }) {
-    if (_currentUser == null) return;
+  }) async {
+    final user = _currentUser;
+    final repository = _profileRepository;
+    if (user == null || repository == null) {
+      return 'Profile is not available.';
+    }
+    if (_isBanker) return 'Banker profiles cannot be edited in the app.';
 
-    if (fullName != null) _currentUser!.fullName = fullName.trim();
-    if (companyName != null) _currentUser!.companyName = companyName.trim();
-    if (phone != null) _currentUser!.phone = phone.trim();
-
-    if (!_isBanker) {
-      final index = _registeredUsers.indexWhere(
-        (u) => u.id == _currentUser!.id,
+    try {
+      final profile = await repository.update(
+        userId: user.id,
+        fullName: fullName?.trim() ?? user.fullName,
+        companyName: companyName?.trim() ?? user.companyName,
+        phone: phone?.trim() ?? user.phone,
       );
-      if (index != -1) {
-        _registeredUsers[index] = _currentUser!;
+      _currentUser = UserAccount(
+        id: user.id,
+        fullName: profile['full_name'] as String? ?? user.fullName,
+        email: profile['email'] as String? ?? user.email,
+        companyName: profile['company_name'] as String? ?? user.companyName,
+        phone: profile['phone'] as String? ?? user.phone,
+      );
+      notifyListeners();
+      return null;
+    } catch (error) {
+      return _messageFor(error);
+    }
+  }
+
+  Future<String?> resetPassword({required String email}) async {
+    final repository = _authRepository;
+    if (repository == null) return 'Supabase is not configured.';
+
+    try {
+      await repository.sendPasswordReset(email.trim().toLowerCase());
+      return null;
+    } catch (error) {
+      return _messageFor(error);
+    }
+  }
+
+  Future<void> _handleAuthState(AuthState _) async {
+    if (_isAuthenticating) return;
+    final user = _authRepository?.currentUser;
+    if (user == null) {
+      if (_currentUser != null) {
+        _currentUser = null;
+        _isBanker = false;
+        notifyListeners();
+        await _notifyAuthenticationChanged();
       }
+      return;
     }
 
+    if (_currentUser?.id != user.id) {
+      try {
+        await _loadUser(user);
+        await _notifyAuthenticationChanged();
+      } catch (error) {
+        _notice = _messageFor(error);
+        _currentUser = null;
+        _isBanker = false;
+        notifyListeners();
+        await _notifyAuthenticationChanged();
+      }
+    }
+  }
+
+  Future<void> _loadUser(User user) async {
+    Map<String, dynamic>? profile;
+    final repository = _profileRepository;
+    if (repository != null) {
+      profile = await repository.findById(user.id);
+      profile ??= await repository.save(
+        id: user.id,
+        fullName: user.userMetadata?['full_name'] as String? ?? 'SME User',
+        companyName: user.userMetadata?['company_name'] as String? ?? '',
+        phone: user.userMetadata?['phone'] as String? ?? '',
+        email: user.email ?? '',
+      );
+    }
+    _currentUser = UserAccount.fromProfile(user, profile);
+    _isBanker = _authRepository?.isBanker(user) ?? false;
     notifyListeners();
   }
 
-  String? resetPassword({
-    required String email,
-    required String newPassword,
-  }) {
-    final trimmedEmail = email.trim().toLowerCase();
+  Future<void> _notifyAuthenticationChanged() async {
+    await _authChangedCallback?.call(_currentUser);
+  }
 
-    final index = _registeredUsers.indexWhere(
-      (u) => u.email == trimmedEmail,
-    );
+  String _messageFor(Object error) {
+    return friendlySupabaseError(error);
+  }
 
-    if (index == -1) {
-      return 'No account found with this email.';
-    }
-
-    _registeredUsers[index].password = newPassword;
-    notifyListeners();
-    return null;
+  @override
+  void dispose() {
+    unawaited(_authSubscription?.cancel());
+    super.dispose();
   }
 }

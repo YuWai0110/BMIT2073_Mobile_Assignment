@@ -37,7 +37,7 @@ class _SmeViewState extends State<_SmeView> {
     super.dispose();
   }
 
-  void _submitApplication() {
+  Future<void> _submitApplication() async {
     if (!_formKey.currentState!.validate()) return;
 
     final manager = context.read<LoanManager>();
@@ -48,7 +48,22 @@ class _SmeViewState extends State<_SmeView> {
       loanAmount: double.parse(_amountCtrl.text.trim()),
       interestRate: _interestRate,
     );
-    manager.addLoanRequest(req);
+    final error = await manager.addLoanRequest(req);
+    if (!mounted) return;
+
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ $error'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
 
     _companyCtrl.clear();
     _amountCtrl.clear();
@@ -390,7 +405,17 @@ class _BankerView extends StatelessWidget {
               ),
             );
           },
-          onDismissed: (_) => manager.deleteRequest(req.id),
+          onDismissed: (_) async {
+            final error = await manager.deleteRequest(req.id);
+            if (context.mounted && error != null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('❌ $error'),
+                  backgroundColor: AppColors.error,
+                ),
+              );
+            }
+          },
           child: _BankerRequestCard(request: req),
         );
       },
@@ -501,10 +526,20 @@ class _BankerRequestCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () => manager.updateStatus(
-                        request.id,
-                        LoanStatus.notApproved,
-                      ),
+                      onPressed: () async {
+                        final error = await manager.updateStatus(
+                          request.id,
+                          LoanStatus.notApproved,
+                        );
+                        if (context.mounted && error != null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('❌ $error'),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                        }
+                      },
                       icon: const Icon(Icons.close, size: 18),
                       label: const Text('Reject'),
                       style: OutlinedButton.styleFrom(
@@ -516,8 +551,20 @@ class _BankerRequestCard extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () =>
-                          manager.updateStatus(request.id, LoanStatus.approved),
+                      onPressed: () async {
+                        final error = await manager.updateStatus(
+                          request.id,
+                          LoanStatus.approved,
+                        );
+                        if (context.mounted && error != null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('❌ $error'),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                        }
+                      },
                       icon: const Icon(Icons.check, size: 18),
                       label: const Text('Approve'),
                       style: ElevatedButton.styleFrom(

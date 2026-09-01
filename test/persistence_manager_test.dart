@@ -52,7 +52,7 @@ void main() {
     test('restores rules and notification read state', () async {
       final database = MemoryDatabase();
       final manager = TriggerManager(database: database);
-      await manager.initialize();
+      await manager.initialize(userId: 'user-a');
 
       final rule = TriggerRule(
         id: 'rule-1',
@@ -69,7 +69,7 @@ void main() {
       expect(messages, hasLength(1));
 
       final restored = TriggerManager(database: database);
-      await restored.initialize();
+      await restored.initialize(userId: 'user-a');
       expect(restored.rules, hasLength(1));
       expect(restored.rules.single.targetOPR, 3.25);
       expect(restored.rules.single.isEnabled, isTrue);
@@ -81,7 +81,7 @@ void main() {
       await restored.waitForPendingWrites();
 
       final readState = TriggerManager(database: database);
-      await readState.initialize();
+      await readState.initialize(userId: 'user-a');
       expect(readState.unreadCount, 0);
 
       readState.deleteNotification(notificationId);
@@ -89,9 +89,37 @@ void main() {
       await readState.waitForPendingWrites();
 
       final deleted = TriggerManager(database: database);
-      await deleted.initialize();
+      await deleted.initialize(userId: 'user-a');
       expect(deleted.notifications, isEmpty);
       expect(deleted.rules, isEmpty);
+    });
+
+    test('isolates trigger rules by authenticated user', () async {
+      final database = MemoryDatabase();
+      final manager = TriggerManager(database: database);
+      await manager.initialize(userId: 'user-a');
+      manager.addRule(
+        TriggerRule(
+          id: 'user-a-rule',
+          targetOPR: 3,
+          equipmentType: 'Robotic Arm',
+        ),
+      );
+      await manager.waitForPendingWrites();
+
+      await manager.setUser('user-b');
+      expect(manager.rules, isEmpty);
+      manager.addRule(
+        TriggerRule(
+          id: 'user-b-rule',
+          targetOPR: 2.75,
+          equipmentType: 'AI Vision Inspector',
+        ),
+      );
+      await manager.waitForPendingWrites();
+
+      await manager.setUser('user-a');
+      expect(manager.rules.map((rule) => rule.id), ['user-a-rule']);
     });
   });
 
@@ -100,7 +128,7 @@ void main() {
   ) async {
     final database = MemoryDatabase();
     final manager = TriggerManager(database: database);
-    await manager.initialize();
+    await manager.initialize(userId: 'user-a');
     manager.addRule(
       TriggerRule(
         id: 'startup-rule',
@@ -147,18 +175,21 @@ class MemoryDatabase implements LocalDatabase {
   }
 
   @override
-  Future<List<Map<String, Object?>>> getTriggerRules() async {
-    return _rules.values.map(Map<String, Object?>.from).toList();
+  Future<List<Map<String, Object?>>> getTriggerRules(String userId) async {
+    return _rules.values
+        .where((row) => row['user_id'] == userId)
+        .map(Map<String, Object?>.from)
+        .toList();
   }
 
   @override
   Future<void> upsertTriggerRule(Map<String, Object?> values) async {
-    _rules[values['id']! as String] = Map.from(values);
+    _rules['${values['user_id']}:${values['id']}'] = Map.from(values);
   }
 
   @override
-  Future<void> deleteTriggerRule(String id) async {
-    _rules.remove(id);
+  Future<void> deleteTriggerRule(String id, String userId) async {
+    _rules.remove('$userId:$id');
   }
 
   @override

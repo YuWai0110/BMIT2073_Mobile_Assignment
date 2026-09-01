@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
 import '../../core/mock_data.dart';
+import '../../core/responsive_input_dialog.dart';
 import 'trigger_manager.dart';
 
 class TriggerScreen extends StatefulWidget {
@@ -209,88 +210,34 @@ class _TriggerScreenState extends State<TriggerScreen> {
     return '${local.year}-$month-$day $hour:$minute';
   }
 
-  void _showAddRuleDialog({TriggerRule? existing}) {
-    final oprCtrl = TextEditingController(
-      text: existing?.targetOPR.toString() ?? '3.00',
-    );
-    String selectedEquipment =
-        existing?.equipmentType ?? MockData.equipmentTypes.first;
-
-    showDialog(
+  Future<void> _showAddRuleDialog({TriggerRule? existing}) async {
+    final result = await showDialog<_TriggerRuleInput>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Text(existing != null ? 'Edit Rule' : 'Add Trigger Rule'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: oprCtrl,
-                decoration: appInputDecoration(
-                  label: 'Target OPR Threshold (%)',
-                  hint: 'e.g. 2.75',
-                  prefixIcon: Icons.trending_down,
-                ),
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-              ),
-              const SizedBox(height: 14),
-              DropdownButtonFormField<String>(
-                initialValue: selectedEquipment,
-                decoration: appInputDecoration(
-                  label: 'Equipment Type',
-                  prefixIcon: Icons.precision_manufacturing,
-                ),
-                items: MockData.equipmentTypes
-                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                    .toList(),
-                onChanged: (v) {
-                  if (v != null) {
-                    setDialogState(() => selectedEquipment = v);
-                  }
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final opr = double.tryParse(oprCtrl.text.trim());
-                if (opr == null) return;
-
-                final manager = context.read<TriggerManager>();
-
-                if (existing != null) {
-                  manager.editRule(
-                    existing.copyWith(
-                      targetOPR: opr,
-                      equipmentType: selectedEquipment,
-                    ),
-                  );
-                } else {
-                  manager.addRule(
-                    TriggerRule(
-                      id: DateTime.now().millisecondsSinceEpoch.toString(),
-                      targetOPR: opr,
-                      equipmentType: selectedEquipment,
-                    ),
-                  );
-                }
-
-                Navigator.pop(ctx);
-                manager.checkTriggers(_currentOPR, _selectedYear.round());
-              },
-              child: Text(existing != null ? 'Update' : 'Add'),
-            ),
-          ],
-        ),
-      ),
+      useSafeArea: false,
+      builder: (_) => _TriggerRuleDialog(existing: existing),
     );
+
+    if (!mounted || result == null) return;
+
+    final manager = context.read<TriggerManager>();
+    if (existing != null) {
+      manager.editRule(
+        existing.copyWith(
+          targetOPR: result.targetOPR,
+          equipmentType: result.equipmentType,
+        ),
+      );
+    } else {
+      manager.addRule(
+        TriggerRule(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          targetOPR: result.targetOPR,
+          equipmentType: result.equipmentType,
+        ),
+      );
+    }
+
+    manager.checkTriggers(_currentOPR, _selectedYear.round());
   }
 
   @override
@@ -625,6 +572,110 @@ class _TriggerScreenState extends State<TriggerScreen> {
           ],
         );
       },
+    );
+  }
+}
+
+class _TriggerRuleInput {
+  final double targetOPR;
+  final String equipmentType;
+
+  const _TriggerRuleInput({
+    required this.targetOPR,
+    required this.equipmentType,
+  });
+}
+
+class _TriggerRuleDialog extends StatefulWidget {
+  final TriggerRule? existing;
+
+  const _TriggerRuleDialog({this.existing});
+
+  @override
+  State<_TriggerRuleDialog> createState() => _TriggerRuleDialogState();
+}
+
+class _TriggerRuleDialogState extends State<_TriggerRuleDialog> {
+  late final TextEditingController _oprController;
+  final FocusNode _oprFocusNode = FocusNode();
+  late String _selectedEquipment;
+
+  @override
+  void initState() {
+    super.initState();
+    _oprController = TextEditingController(
+      text: widget.existing?.targetOPR.toString() ?? '3.00',
+    );
+    _selectedEquipment =
+        widget.existing?.equipmentType ?? MockData.equipmentTypes.first;
+  }
+
+  @override
+  void dispose() {
+    _oprController.dispose();
+    _oprFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final targetOPR = double.tryParse(_oprController.text.trim());
+    if (targetOPR == null) return;
+
+    Navigator.of(context).pop(
+      _TriggerRuleInput(
+        targetOPR: targetOPR,
+        equipmentType: _selectedEquipment,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ResponsiveInputDialog(
+      title: Text(widget.existing != null ? 'Edit Rule' : 'Add Trigger Rule'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextFormField(
+            controller: _oprController,
+            focusNode: _oprFocusNode,
+            decoration: appInputDecoration(
+              label: 'Target OPR Threshold (%)',
+              hint: 'e.g. 2.75',
+              prefixIcon: Icons.trending_down,
+            ),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onFieldSubmitted: (_) => _submit(),
+          ),
+          const SizedBox(height: 14),
+          DropdownButtonFormField<String>(
+            initialValue: _selectedEquipment,
+            isExpanded: true,
+            decoration: appInputDecoration(
+              label: 'Equipment Type',
+              prefixIcon: Icons.precision_manufacturing,
+            ),
+            items: MockData.equipmentTypes
+                .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                .toList(),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() => _selectedEquipment = value);
+              }
+            },
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _submit,
+          child: Text(widget.existing != null ? 'Update' : 'Add'),
+        ),
+      ],
     );
   }
 }

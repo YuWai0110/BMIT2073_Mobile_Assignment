@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/constants.dart';
 import 'features/auth/auth_manager.dart';
@@ -13,9 +15,18 @@ import 'features/calculator_roi/calc_screen.dart';
 import 'features/interest_trigger/trigger_manager.dart';
 import 'features/interest_trigger/trigger_screen.dart';
 import 'services/database/database_service.dart';
+import 'services/supabase/auth_repository.dart';
+import 'services/supabase/loan_repository.dart';
+import 'services/supabase/profile_repository.dart';
+import 'services/supabase/supabase_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await dotenv.load(fileName: '.env');
+  final supabaseUrl = dotenv.get('SUPABASE_URL');
+  final supabaseKey = dotenv.get('SUPABASE_ANON_KEY');
+  await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseKey);
 
   final database = DatabaseService.instance;
   await database.initialize();
@@ -24,11 +35,29 @@ Future<void> main() async {
   final triggerManager = TriggerManager(database: database);
   await Future.wait([calcManager.initialize(), triggerManager.initialize()]);
 
+  final supabaseService = SupabaseService(Supabase.instance.client);
+  final loanManager = LoanManager(LoanRepository(supabaseService));
+  final authManager = AuthManager(
+    AuthRepository(supabaseService),
+    ProfileRepository(supabaseService),
+    onAuthenticationChanged: (user) async {
+      await Future.wait([
+        loanManager.loadApplications(),
+        triggerManager.setUser(user?.id),
+      ]);
+    },
+  );
+  await authManager.initialize();
+  await Future.wait([
+    loanManager.initialize(),
+    triggerManager.setUser(authManager.currentUser?.id),
+  ]);
+
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthManager()),
-        ChangeNotifierProvider(create: (_) => LoanManager()),
+        ChangeNotifierProvider.value(value: authManager),
+        ChangeNotifierProvider.value(value: loanManager),
         ChangeNotifierProvider.value(value: calcManager),
         ChangeNotifierProvider.value(value: triggerManager),
       ],
@@ -102,7 +131,20 @@ class _HomeShellState extends State<_HomeShell> {
     final auth = context.watch<AuthManager>();
     final user = auth.currentUser;
     final screenWidth = MediaQuery.sizeOf(context).width;
+    final isLandscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
+    final useNavigationRail = isLandscape && screenWidth >= 700;
     final showGreeting = screenWidth >= 520;
+
+    final pages = IndexedStack(
+      index: _currentIndex,
+      children: [
+        const TriggerScreen(),
+        LoanScreen(isBanker: auth.isBanker),
+        const CalcScreen(),
+        const ProfileScreen(),
+      ],
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -162,42 +204,71 @@ class _HomeShellState extends State<_HomeShell> {
         ],
       ),
 
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
-          const TriggerScreen(),
-          LoanScreen(isBanker: auth.isBanker),
-          const CalcScreen(),
-          const ProfileScreen(),
-        ],
-      ),
-
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.timeline),
-            activeIcon: Icon(Icons.timeline, size: 28),
-            label: 'Rates',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.assignment_outlined),
-            activeIcon: Icon(Icons.assignment, size: 28),
-            label: 'Loans',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calculate_outlined),
-            activeIcon: Icon(Icons.calculate, size: 28),
-            label: 'Calculator',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            activeIcon: Icon(Icons.person, size: 28),
-            label: 'Profile',
-          ),
-        ],
-      ),
+      body: useNavigationRail
+          ? Row(
+              children: [
+                NavigationRail(
+                  selectedIndex: _currentIndex,
+                  onDestinationSelected: (index) {
+                    setState(() => _currentIndex = index);
+                  },
+                  labelType: NavigationRailLabelType.all,
+                  destinations: const [
+                    NavigationRailDestination(
+                      icon: Icon(Icons.timeline),
+                      selectedIcon: Icon(Icons.timeline),
+                      label: Text('Rates'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.assignment_outlined),
+                      selectedIcon: Icon(Icons.assignment),
+                      label: Text('Loans'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.calculate_outlined),
+                      selectedIcon: Icon(Icons.calculate),
+                      label: Text('Calculator'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.person_outline),
+                      selectedIcon: Icon(Icons.person),
+                      label: Text('Profile'),
+                    ),
+                  ],
+                ),
+                const VerticalDivider(width: 1),
+                Expanded(child: pages),
+              ],
+            )
+          : pages,
+      bottomNavigationBar: useNavigationRail
+          ? null
+          : BottomNavigationBar(
+              currentIndex: _currentIndex,
+              onTap: (i) => setState(() => _currentIndex = i),
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.timeline),
+                  activeIcon: Icon(Icons.timeline, size: 28),
+                  label: 'Rates',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.assignment_outlined),
+                  activeIcon: Icon(Icons.assignment, size: 28),
+                  label: 'Loans',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.calculate_outlined),
+                  activeIcon: Icon(Icons.calculate, size: 28),
+                  label: 'Calculator',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.person_outline),
+                  activeIcon: Icon(Icons.person, size: 28),
+                  label: 'Profile',
+                ),
+              ],
+            ),
     );
   }
 }
