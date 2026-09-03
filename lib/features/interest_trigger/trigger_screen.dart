@@ -253,6 +253,7 @@ class _TriggerScreenState extends State<TriggerScreen> {
         return Stack(
           children: [
             ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16),
               children: [
                 Card(

@@ -248,6 +248,7 @@ class _SmeViewState extends State<_SmeView> {
         final useTwoPane = isLandscape && constraints.maxWidth >= 700;
 
         return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           child: useTwoPane
               ? Row(
@@ -340,26 +341,35 @@ class _BankerView extends StatelessWidget {
     final requests = manager.allRequests;
 
     if (requests.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.folder_open, size: 64, color: AppColors.lightGrey),
-            const SizedBox(height: 12),
-            Text(
-              'No loan applications to review',
-              style: TextStyle(
-                fontSize: 16,
-                color: AppColors.mediumGrey,
-                fontWeight: FontWeight.w500,
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.55,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.folder_open, size: 64, color: AppColors.lightGrey),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No loan applications to review',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: AppColors.mediumGrey,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       );
     }
 
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(12),
       itemCount: requests.length,
       itemBuilder: (context, index) {

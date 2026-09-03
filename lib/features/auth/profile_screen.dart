@@ -268,6 +268,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return const Center(child: Text('Not logged in'));
     }
 
+    if (!_isEditing) {
+      _nameCtrl.text = user.fullName;
+      _companyCtrl.text = user.companyName;
+      _phoneCtrl.text = user.phone;
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isLandscape =
@@ -275,6 +281,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final useTwoPane = isLandscape && constraints.maxWidth >= 700;
 
         return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           child: useTwoPane
               ? Row(

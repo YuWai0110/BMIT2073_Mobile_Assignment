@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
@@ -17,8 +18,8 @@ class CalcScreen extends StatefulWidget {
 }
 
 class _CalcScreenState extends State<CalcScreen> {
-  final _priceCtrl = TextEditingController(text: '50000');
-  final _unitCtrl = TextEditingController(text: '1');
+  final _priceCtrl = TextEditingController(text: '0');
+  final _unitCtrl = TextEditingController(text: '0');
   double _interestRate = 4.5;
   int _loanTermMonths = 36;
   String? _editingId;
@@ -28,7 +29,23 @@ class _CalcScreenState extends State<CalcScreen> {
   double _totalPayment = 0;
   double _totalInterest = 0;
 
-  static const List<int> _termOptions = [12, 24, 36, 48, 60];
+  static const List<int> _termOptions = [
+    12,
+    24,
+    36,
+    48,
+    60,
+    72,
+    84,
+    96,
+    108,
+    120,
+    132,
+    144,
+    156,
+    168,
+    180,
+  ];
 
   @override
   void initState() {
@@ -45,7 +62,7 @@ class _CalcScreenState extends State<CalcScreen> {
 
   void _recalculate() {
     final price = double.tryParse(_priceCtrl.text) ?? 0;
-    final units = int.tryParse(_unitCtrl.text) ?? 1;
+    final units = int.tryParse(_unitCtrl.text) ?? 0;
     final principal = price * units;
 
     final result = CalcManager.calculateEMI(
@@ -83,13 +100,20 @@ class _CalcScreenState extends State<CalcScreen> {
     );
   }
 
+  bool _hasValidCalculatorInput(AiAdvisorInput input) {
+    return input.equipmentPrice > 0 &&
+        input.quantity > 0 &&
+        input.interestRate >= 0 &&
+        input.interestRate <= 20;
+  }
+
   Future<void> _generateAiAdvice() async {
     final input = _buildAiInput();
-    if (input.equipmentPrice <= 0 || input.quantity <= 0) {
+    if (!_hasValidCalculatorInput(input)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text(
-            'Enter a valid equipment price and quantity first.',
+            'Enter a price above RM 0, a quantity above 0, and an interest rate from 0% to 20%.',
           ),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
@@ -131,12 +155,14 @@ class _CalcScreenState extends State<CalcScreen> {
 
   Future<void> _saveScheme() async {
     final price = double.tryParse(_priceCtrl.text) ?? 0;
-    final units = int.tryParse(_unitCtrl.text) ?? 1;
+    final units = int.tryParse(_unitCtrl.text) ?? 0;
 
-    if (price <= 0) {
+    if (price <= 0 || units <= 0 || _interestRate < 0 || _interestRate > 20) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Please enter a valid equipment price'),
+          content: const Text(
+            'Enter a price above RM 0, a quantity above 0, and an interest rate from 0% to 20%.',
+          ),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
@@ -243,8 +269,8 @@ class _CalcScreenState extends State<CalcScreen> {
                         _editingId = null;
                         _editingTitle = null;
                       });
-                      _priceCtrl.text = '50000';
-                      _unitCtrl.text = '1';
+                      _priceCtrl.text = '0';
+                      _unitCtrl.text = '0';
                       _interestRate = 4.5;
                       _loanTermMonths = 36;
                       _onCalculatorInputChanged();
@@ -265,7 +291,18 @@ class _CalcScreenState extends State<CalcScreen> {
                 hint: 'e.g. 50000',
                 prefixIcon: Icons.precision_manufacturing,
               ),
-              keyboardType: TextInputType.number,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+                signed: false,
+              ),
+              inputFormatters: [
+                TextInputFormatter.withFunction(
+                  (oldValue, newValue) =>
+                      RegExp(r'^\d*\.?\d{0,2}$').hasMatch(newValue.text)
+                      ? newValue
+                      : oldValue,
+                ),
+              ],
               onChanged: (_) => _onCalculatorInputChanged(),
             ),
             const SizedBox(height: 14),
@@ -276,7 +313,17 @@ class _CalcScreenState extends State<CalcScreen> {
                 hint: 'e.g. 3',
                 prefixIcon: Icons.inventory_2_outlined,
               ),
-              keyboardType: TextInputType.number,
+              keyboardType: const TextInputType.numberWithOptions(
+                signed: false,
+              ),
+              inputFormatters: [
+                TextInputFormatter.withFunction(
+                  (oldValue, newValue) =>
+                      RegExp(r'^\d*$').hasMatch(newValue.text)
+                      ? newValue
+                      : oldValue,
+                ),
+              ],
               onChanged: (_) => _onCalculatorInputChanged(),
             ),
             const SizedBox(height: 14),
@@ -300,9 +347,9 @@ class _CalcScreenState extends State<CalcScreen> {
             ),
             Slider(
               value: _interestRate,
-              min: 1.0,
-              max: 15.0,
-              divisions: 56,
+              min: 0,
+              max: 20,
+              divisions: 80,
               activeColor: AppColors.accentBlue,
               label: '${_interestRate.toStringAsFixed(2)}%',
               onChanged: (v) {
@@ -314,6 +361,7 @@ class _CalcScreenState extends State<CalcScreen> {
             DropdownButtonFormField<int>(
               initialValue: _loanTermMonths,
               isExpanded: true,
+              menuMaxHeight: 240,
               decoration: appInputDecoration(
                 label: 'Loan Term',
                 prefixIcon: Icons.calendar_month,
@@ -545,6 +593,7 @@ class _CalcScreenState extends State<CalcScreen> {
         final useTwoPane = isLandscape && constraints.maxWidth >= 700;
 
         return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,

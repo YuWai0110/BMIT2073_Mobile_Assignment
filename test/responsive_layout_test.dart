@@ -143,6 +143,7 @@ void main() {
       );
       await tester.tap(find.text('Skip'));
       await tester.pumpAndSettle();
+      expect(find.byType(RefreshIndicator), findsOneWidget);
       if (size.width >= 700 && size.width > size.height) {
         expect(find.byType(NavigationRail), findsOneWidget);
         expect(find.byType(BottomNavigationBar), findsNothing);
@@ -267,6 +268,7 @@ void main() {
         tester.view.devicePixelRatio = 1;
         tester.view.viewInsets = FakeViewPadding.zero;
         final manager = CalcManager(database: _DialogDatabase());
+        await manager.initialize(userId: 'dialog-user');
 
         await tester.pumpWidget(
           ChangeNotifierProvider.value(
@@ -274,6 +276,9 @@ void main() {
             child: const MaterialApp(home: Scaffold(body: CalcScreen())),
           ),
         );
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextFormField).at(0), '50000');
+        await tester.enterText(find.byType(TextFormField).at(1), '1');
         await tester.pumpAndSettle();
         await tester.ensureVisible(find.text('Save This Scheme'));
         await tester.tap(find.text('Save This Scheme'));
@@ -349,6 +354,45 @@ void main() {
     }
   });
 
+  testWidgets('calculator validates input and supports a 15-year term', (
+    tester,
+  ) async {
+    await _pumpAtSize(
+      tester,
+      const Size(390, 844),
+      ChangeNotifierProvider(
+        create: (_) => CalcManager(),
+        child: const Scaffold(body: CalcScreen()),
+      ),
+    );
+
+    final fields = find.byType(TextFormField);
+    expect(tester.widget<TextFormField>(fields.at(0)).controller!.text, '0');
+    expect(tester.widget<TextFormField>(fields.at(1)).controller!.text, '0');
+
+    await tester.enterText(fields.at(1), '-5');
+    expect(tester.widget<TextFormField>(fields.at(1)).controller!.text, '0');
+
+    await tester.ensureVisible(find.text('Save This Scheme'));
+    await tester.tap(find.text('Save This Scheme'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'Enter a price above RM 0, a quantity above 0, and an interest rate from 0% to 20%.',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byType(DropdownButtonFormField<int>));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('180 months (15 yrs)'),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('180 months (15 yrs)'), findsOneWidget);
+  });
+
   testWidgets('profile supports portrait and landscape sizes', (tester) async {
     for (final size in _screenSizes) {
       final auth = AuthManager.forTesting(loggedIn: true);
@@ -367,13 +411,13 @@ class _DialogDatabase implements LocalDatabase {
   Future<void> initialize() async {}
 
   @override
-  Future<List<Map<String, Object?>>> getEmiSchemes() async => [];
+  Future<List<Map<String, Object?>>> getEmiSchemes(String userId) async => [];
 
   @override
   Future<void> upsertEmiScheme(Map<String, Object?> values) async {}
 
   @override
-  Future<void> deleteEmiScheme(String id) async {}
+  Future<void> deleteEmiScheme(String id, String userId) async {}
 
   @override
   Future<List<Map<String, Object?>>> getTriggerRules(String userId) async => [];

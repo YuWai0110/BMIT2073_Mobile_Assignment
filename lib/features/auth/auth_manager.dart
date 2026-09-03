@@ -253,6 +253,12 @@ class AuthManager extends ChangeNotifier {
     }
   }
 
+  Future<void> refreshProfile() async {
+    final user = _authRepository?.currentUser;
+    if (user == null) return;
+    await _loadUser(user);
+  }
+
   Future<String?> resetPassword({required String email}) async {
     final repository = _authRepository;
     if (repository == null) return 'Supabase is not configured.';

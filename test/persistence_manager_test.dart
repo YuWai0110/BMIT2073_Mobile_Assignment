@@ -11,7 +11,7 @@ void main() {
     test('restores, updates, and deletes EMI schemes', () async {
       final database = MemoryDatabase();
       final manager = CalcManager(database: database);
-      await manager.initialize();
+      await manager.initialize(userId: 'user-a');
 
       final scheme = CalcScheme(
         id: 'scheme-1',
@@ -27,7 +27,7 @@ void main() {
       await manager.waitForPendingWrites();
 
       final restored = CalcManager(database: database);
-      await restored.initialize();
+      await restored.initialize(userId: 'user-a');
       expect(restored.schemes, hasLength(1));
       expect(restored.schemes.single.loanTermMonths, 36);
       expect(restored.schemes.single.unitCount, 2);
@@ -36,16 +36,58 @@ void main() {
       await restored.waitForPendingWrites();
 
       final updated = CalcManager(database: database);
-      await updated.initialize();
+      await updated.initialize(userId: 'user-a');
       expect(updated.schemes.single.title, 'Updated Robotic Arm');
 
       updated.deleteScheme(scheme.id);
       await updated.waitForPendingWrites();
 
       final deleted = CalcManager(database: database);
-      await deleted.initialize();
+      await deleted.initialize(userId: 'user-a');
       expect(deleted.schemes, isEmpty);
     });
+  });
+
+  test('isolates EMI schemes by authenticated user', () async {
+    final database = MemoryDatabase();
+    final manager = CalcManager(database: database);
+    await manager.initialize(userId: 'user-a');
+    manager.saveScheme(
+      CalcScheme(
+        id: 'user-a-scheme',
+        title: 'User A Scheme',
+        equipmentPrice: 50000,
+        unitCount: 1,
+        loanTermMonths: 36,
+        interestRate: 4.5,
+        monthlyPayment: 1487.35,
+        totalPayment: 53544.46,
+      ),
+    );
+    await manager.waitForPendingWrites();
+
+    await manager.setUser('user-b');
+    expect(manager.schemes, isEmpty);
+
+    manager.saveScheme(
+      CalcScheme(
+        id: 'user-b-scheme',
+        title: 'User B Scheme',
+        equipmentPrice: 75000,
+        unitCount: 1,
+        loanTermMonths: 60,
+        interestRate: 5,
+        monthlyPayment: 1415.37,
+        totalPayment: 84922.20,
+      ),
+    );
+    await manager.waitForPendingWrites();
+
+    await manager.setUser(null);
+    expect(manager.schemes, isEmpty);
+
+    await manager.setUser('user-a');
+    expect(manager.schemes.map((scheme) => scheme.id), ['user-a-scheme']);
   });
 
   group('TriggerManager persistence', () {
@@ -160,18 +202,21 @@ class MemoryDatabase implements LocalDatabase {
   Future<void> initialize() async {}
 
   @override
-  Future<List<Map<String, Object?>>> getEmiSchemes() async {
-    return _schemes.values.map(Map<String, Object?>.from).toList();
+  Future<List<Map<String, Object?>>> getEmiSchemes(String userId) async {
+    return _schemes.values
+        .where((row) => row['user_id'] == userId)
+        .map(Map<String, Object?>.from)
+        .toList();
   }
 
   @override
   Future<void> upsertEmiScheme(Map<String, Object?> values) async {
-    _schemes[values['id']! as String] = Map.from(values);
+    _schemes['${values['user_id']}:${values['id']}'] = Map.from(values);
   }
 
   @override
-  Future<void> deleteEmiScheme(String id) async {
-    _schemes.remove(id);
+  Future<void> deleteEmiScheme(String id, String userId) async {
+    _schemes.remove('$userId:$id');
   }
 
   @override

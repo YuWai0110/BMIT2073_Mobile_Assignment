@@ -48,6 +48,7 @@ Future<void> main() async {
       await Future.wait([
         loanManager.loadApplications(),
         triggerManager.setUser(user?.id),
+        calcManager.setUser(user?.id),
       ]);
     },
   );
@@ -55,6 +56,7 @@ Future<void> main() async {
   await Future.wait([
     loanManager.initialize(),
     triggerManager.setUser(authManager.currentUser?.id),
+    calcManager.setUser(authManager.currentUser?.id),
   ]);
 
   runApp(
@@ -131,6 +133,21 @@ class _HomeShellState extends State<_HomeShell> {
     'Profile',
   ];
 
+  Future<void> _refreshCurrentPage() {
+    switch (_currentIndex) {
+      case 0:
+        return context.read<TriggerManager>().refresh();
+      case 1:
+        return context.read<LoanManager>().loadApplications();
+      case 2:
+        return context.read<CalcManager>().refresh();
+      case 3:
+        return context.read<AuthManager>().refreshProfile();
+      default:
+        return Future.value();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthManager>();
@@ -149,6 +166,10 @@ class _HomeShellState extends State<_HomeShell> {
         const CalcScreen(),
         const ProfileScreen(),
       ],
+    );
+    final refreshablePages = RefreshIndicator(
+      onRefresh: _refreshCurrentPage,
+      child: pages,
     );
 
     return Scaffold(
@@ -242,10 +263,10 @@ class _HomeShellState extends State<_HomeShell> {
                   ],
                 ),
                 const VerticalDivider(width: 1),
-                Expanded(child: pages),
+                Expanded(child: refreshablePages),
               ],
             )
-          : pages,
+          : refreshablePages,
       bottomNavigationBar: useNavigationRail
           ? null
           : BottomNavigationBar(

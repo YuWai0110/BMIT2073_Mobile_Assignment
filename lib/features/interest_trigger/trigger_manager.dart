@@ -149,6 +149,12 @@ class TriggerManager extends ChangeNotifier {
     await _loadRulesForUser(userId);
   }
 
+  Future<void> refresh() async {
+    await initialize();
+    await _pendingWrite;
+    await _loadPersistedData(_currentUserId);
+  }
+
   Future<void> _loadRulesForUser(String? userId) async {
     final ruleRows = userId == null
         ? <Map<String, Object?>>[]
