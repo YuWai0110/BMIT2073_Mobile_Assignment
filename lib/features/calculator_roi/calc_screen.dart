@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
+import '../../core/mock_data.dart';
 import '../../core/responsive_input_dialog.dart';
+import '../ai/ai_manager.dart';
+import '../ai/models/ai_recommendation.dart';
+import 'ai_recommendation_card.dart';
 import 'calc_manager.dart';
 
 class CalcScreen extends StatefulWidget {
@@ -18,6 +22,7 @@ class _CalcScreenState extends State<CalcScreen> {
   double _interestRate = 4.5;
   int _loanTermMonths = 36;
   String? _editingId;
+  String? _editingTitle;
 
   double _monthlyPayment = 0;
   double _totalPayment = 0;
@@ -54,6 +59,74 @@ class _CalcScreenState extends State<CalcScreen> {
       _totalPayment = result['totalPayment']!;
       _totalInterest = _totalPayment - principal;
     });
+  }
+
+  void _onCalculatorInputChanged() {
+    context.read<AiManager?>()?.clearRecommendation();
+    _recalculate();
+  }
+
+  AiAdvisorInput _buildAiInput() {
+    final equipmentPrice = double.tryParse(_priceCtrl.text) ?? 0;
+    final quantity = int.tryParse(_unitCtrl.text) ?? 0;
+    final currentOpr = MockData.getDataByYear(2024)?['opr'];
+
+    return AiAdvisorInput(
+      equipmentName: _editingTitle ?? 'Automation equipment financing',
+      equipmentPrice: equipmentPrice,
+      quantity: quantity,
+      loanAmount: equipmentPrice * quantity,
+      interestRate: _interestRate,
+      repaymentYears: _loanTermMonths / 12,
+      monthlyEmi: _monthlyPayment,
+      currentOpr: currentOpr is num ? currentOpr.toDouble() : 0,
+    );
+  }
+
+  Future<void> _generateAiAdvice() async {
+    final input = _buildAiInput();
+    if (input.equipmentPrice <= 0 || input.quantity <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Enter a valid equipment price and quantity first.',
+          ),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final manager = context.read<AiManager?>();
+    if (manager == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('AI advice is unavailable right now.'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+
+    await manager.generateAdvice(input);
+    if (!mounted || manager.errorMessage == null) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(manager.errorMessage!),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   Future<void> _saveScheme() async {
@@ -98,7 +171,10 @@ class _CalcScreenState extends State<CalcScreen> {
 
     if (isEditing) {
       manager.updateScheme(scheme);
-      setState(() => _editingId = null);
+      setState(() {
+        _editingId = null;
+        _editingTitle = null;
+      });
     } else {
       manager.saveScheme(scheme);
     }
@@ -116,12 +192,14 @@ class _CalcScreenState extends State<CalcScreen> {
   void _loadScheme(CalcScheme scheme) {
     setState(() {
       _editingId = scheme.id;
+      _editingTitle = scheme.title;
       _priceCtrl.text = scheme.equipmentPrice.toStringAsFixed(0);
       _unitCtrl.text = scheme.unitCount.toString();
       _interestRate = scheme.interestRate;
       _loanTermMonths = scheme.loanTermMonths;
     });
     _recalculate();
+    context.read<AiManager?>()?.clearRecommendation();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -161,12 +239,15 @@ class _CalcScreenState extends State<CalcScreen> {
                 if (_editingId != null)
                   TextButton.icon(
                     onPressed: () {
-                      setState(() => _editingId = null);
+                      setState(() {
+                        _editingId = null;
+                        _editingTitle = null;
+                      });
                       _priceCtrl.text = '50000';
                       _unitCtrl.text = '1';
                       _interestRate = 4.5;
                       _loanTermMonths = 36;
-                      _recalculate();
+                      _onCalculatorInputChanged();
                     },
                     icon: const Icon(Icons.clear, size: 16),
                     label: const Text('Clear Edit'),
@@ -185,7 +266,7 @@ class _CalcScreenState extends State<CalcScreen> {
                 prefixIcon: Icons.precision_manufacturing,
               ),
               keyboardType: TextInputType.number,
-              onChanged: (_) => _recalculate(),
+              onChanged: (_) => _onCalculatorInputChanged(),
             ),
             const SizedBox(height: 14),
             TextFormField(
@@ -196,7 +277,7 @@ class _CalcScreenState extends State<CalcScreen> {
                 prefixIcon: Icons.inventory_2_outlined,
               ),
               keyboardType: TextInputType.number,
-              onChanged: (_) => _recalculate(),
+              onChanged: (_) => _onCalculatorInputChanged(),
             ),
             const SizedBox(height: 14),
             Wrap(
@@ -226,7 +307,7 @@ class _CalcScreenState extends State<CalcScreen> {
               label: '${_interestRate.toStringAsFixed(2)}%',
               onChanged: (v) {
                 setState(() => _interestRate = v);
-                _recalculate();
+                _onCalculatorInputChanged();
               },
             ),
             const SizedBox(height: 8),
@@ -251,7 +332,7 @@ class _CalcScreenState extends State<CalcScreen> {
               onChanged: (v) {
                 if (v != null) {
                   setState(() => _loanTermMonths = v);
-                  _recalculate();
+                  _onCalculatorInputChanged();
                 }
               },
             ),
@@ -322,6 +403,8 @@ class _CalcScreenState extends State<CalcScreen> {
           ),
         ),
         const SizedBox(height: 12),
+        _buildAiAdvisor(context),
+        const SizedBox(height: 12),
         ElevatedButton.icon(
           onPressed: _saveScheme,
           icon: Icon(_editingId != null ? Icons.save : Icons.bookmark_add),
@@ -330,6 +413,64 @@ class _CalcScreenState extends State<CalcScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAiAdvisor(BuildContext context) {
+    final manager = context.watch<AiManager?>();
+    final recommendation = manager?.recommendation;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      color: AppColors.primaryRed.withValues(alpha: 0.04),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.auto_awesome,
+                  color: AppColors.primaryRed,
+                  size: 22,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'AI Financing Advisor',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.darkGrey,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Get a financing recommendation based on your current calculation.',
+              style: TextStyle(color: AppColors.mediumGrey, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            if (manager?.isLoading ?? false)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(12),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (recommendation != null)
+              AiRecommendationCard(recommendation: recommendation)
+            else
+              ElevatedButton.icon(
+                onPressed: manager == null ? null : _generateAiAdvice,
+                icon: const Icon(Icons.auto_awesome),
+                label: const Text('Generate AI Advice'),
+              ),
+          ],
+        ),
+      ),
     );
   }
 

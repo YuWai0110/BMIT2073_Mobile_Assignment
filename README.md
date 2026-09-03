@@ -4,7 +4,7 @@ A Flutter mobile application created for the TAR UMT BMIT2073 Mobile Application
 
 Repository: [YuWai0110/BMIT2073_Mobile_Assignment](https://github.com/YuWai0110/BMIT2073_Mobile_Assignment)
 
-Implementation snapshot documented on 28 August 2026. The current source code is the final authority if this document and an older handoff note differ.
+Implementation snapshot documented on 3 September 2026. The current source code is the final authority if this document and an older handoff note differ.
 
 ## Project Purpose
 
@@ -71,6 +71,7 @@ A banker role can review the same loan applications and approve or reject them.
 - Supports equipment price, unit count, loan term, and annual interest rate.
 - Displays monthly and total repayment.
 - Supports saving, editing, recalculating, and deleting schemes.
+- Includes an AI Financing Advisor that uses the current calculation values to return a risk level, recommendation, cash-flow advice, and confidence score.
 
 ### SQLite Persistence
 
@@ -128,6 +129,7 @@ The Home Shell uses a `BottomNavigationBar` and an `IndexedStack`, so tab state 
 | Chart | Flutter `CustomPainter` |
 | Cloud backend | Supabase Auth and Postgres for profiles and loan applications |
 | Local data storage | SQLite for EMI schemes, triggers, and notifications |
+| AI advisor | Google Gemini via `google_generative_ai` and `GEMINI_API_KEY` |
 | Supported project targets | Android and Web project folders are included |
 
 No Firebase, SharedPreferences, or external chart package is used.
@@ -148,7 +150,13 @@ lib/
 │       ├── auth_repository.dart
 │       ├── profile_repository.dart
 │       └── loan_repository.dart
+│   └── ai/
+│       ├── gemini_service.dart
+│       └── ai_repository.dart
 └── features/
+    ├── ai/
+    │   ├── ai_manager.dart
+    │   └── models/ai_recommendation.dart
     ├── onboarding/
     │   └── onboarding_screen.dart
     ├── auth/
@@ -178,12 +186,17 @@ lib/
 | `TriggerManager` | OPR rules and notifications | `addRule`, `editRule`, `toggleRule`, `removeRule`, `checkTriggers`, `clearInbox` |
 | `LoanManager` | Loan applications and status | `addLoanRequest`, `updateStatus`, `deleteRequest` |
 | `CalcManager` | EMI calculation schemes | `saveScheme`, `updateScheme`, `deleteScheme`, `calculateEMI` |
+| `AiManager` | Gemini financing advice | `generateAdvice`, `clearRecommendation` |
 
 `CalcManager` and `TriggerManager` keep their existing Provider APIs while synchronizing changes to SQLite. `AuthManager` and `LoanManager` keep business state in ChangeNotifier while their repositories read and write Supabase. SQLite and Supabase data are loaded before `runApp`.
 
 ## Supabase Integration
 
 The app reads `SUPABASE_URL` and `SUPABASE_ANON_KEY` from the Git-ignored `.env` asset. Only a frontend-safe Publishable or legacy Anon Key belongs there. The complete schema, indexes, grants, triggers, and RLS policies are in `supabase/schema.sql`; setup and migration instructions are in `SUPABASE_SETUP.md`.
+
+## Gemini AI Advisor
+
+The Calculator's AI Financing Advisor reads `GEMINI_API_KEY` from the same Git-ignored `.env` asset. It sends only the current calculator data: equipment name, price, quantity, loan amount, interest rate, repayment years, monthly EMI, and current mock OPR. Gemini is asked to return JSON only, which is validated before the Material 3 recommendation card is shown. Network, timeout, empty-response, and invalid-JSON failures are converted into friendly SnackBars without exposing provider errors.
 
 ## SQLite Schema
 

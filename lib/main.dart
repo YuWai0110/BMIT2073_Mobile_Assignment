@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/constants.dart';
+import 'features/ai/ai_manager.dart';
 import 'features/auth/auth_manager.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/profile_screen.dart';
@@ -15,6 +16,8 @@ import 'features/calculator_roi/calc_screen.dart';
 import 'features/interest_trigger/trigger_manager.dart';
 import 'features/interest_trigger/trigger_screen.dart';
 import 'services/database/database_service.dart';
+import 'services/ai/ai_repository.dart';
+import 'services/ai/gemini_service.dart';
 import 'services/supabase/auth_repository.dart';
 import 'services/supabase/loan_repository.dart';
 import 'services/supabase/profile_repository.dart';
@@ -33,6 +36,7 @@ Future<void> main() async {
 
   final calcManager = CalcManager(database: database);
   final triggerManager = TriggerManager(database: database);
+  final aiManager = AiManager(AiRepository(GeminiService.fromEnvironment()));
   await Future.wait([calcManager.initialize(), triggerManager.initialize()]);
 
   final supabaseService = SupabaseService(Supabase.instance.client);
@@ -60,6 +64,7 @@ Future<void> main() async {
         ChangeNotifierProvider.value(value: loanManager),
         ChangeNotifierProvider.value(value: calcManager),
         ChangeNotifierProvider.value(value: triggerManager),
+        ChangeNotifierProvider.value(value: aiManager),
       ],
       child: const MainApp(),
     ),
