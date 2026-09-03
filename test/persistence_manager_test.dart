@@ -4,6 +4,7 @@ import 'package:mobile_assginment/features/calculator_roi/calc_manager.dart';
 import 'package:mobile_assginment/features/interest_trigger/trigger_manager.dart';
 import 'package:mobile_assginment/features/interest_trigger/trigger_screen.dart';
 import 'package:mobile_assginment/services/database/database_service.dart';
+import 'package:mobile_assginment/services/notification/local_notification_service.dart';
 import 'package:provider/provider.dart';
 
 void main() {
@@ -194,6 +195,39 @@ void main() {
       expect(manager.notifications, isEmpty);
       expect(manager.unreadCount, 0);
     });
+
+    test(
+      'shows one local alert only when a new inbox item is created',
+      () async {
+        final database = MemoryDatabase();
+        final localNotifications = FakeOprNotificationService();
+        final manager = TriggerManager(
+          database: database,
+          localNotificationService: localNotifications,
+        );
+        await manager.initialize(userId: 'user-a');
+        manager.addRule(
+          TriggerRule(
+            id: 'opr-alert-rule',
+            targetOPR: 3,
+            equipmentType: 'AI Vision Inspector',
+          ),
+        );
+
+        manager.checkTriggers(3, 2026);
+        manager.checkTriggers(3, 2026);
+        await manager.waitForPendingWrites();
+
+        expect(manager.notifications, hasLength(1));
+        expect(localNotifications.alertBodies, [
+          'OPR reached 3.00%. Best time to purchase AI Vision Inspector.',
+        ]);
+
+        await manager.setUser('user-b');
+        expect(manager.notifications, isEmpty);
+        expect(manager.unreadCount, 0);
+      },
+    );
   });
 
   testWidgets('TriggerScreen checks persisted rules after the first frame', (
@@ -222,6 +256,18 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byType(SnackBar), findsOneWidget);
   });
+}
+
+class FakeOprNotificationService implements OprNotificationService {
+  final List<String> alertBodies = [];
+
+  @override
+  Future<void> showOprAlert({
+    required String notificationId,
+    required String body,
+  }) async {
+    alertBodies.add(body);
+  }
 }
 
 class MemoryDatabase implements LocalDatabase {

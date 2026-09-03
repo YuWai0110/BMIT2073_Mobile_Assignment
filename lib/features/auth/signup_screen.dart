@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
 import 'auth_manager.dart';
+import 'auth_validators.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -22,6 +24,20 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   bool _isLoading = false;
+  bool _isFormValid = false;
+
+  void _updateFormValidity() {
+    final isValid =
+        validateFullName(_nameCtrl.text) == null &&
+        validateEmailAddress(_emailCtrl.text) == null &&
+        validateRegistrationPassword(_passwordCtrl.text) == null &&
+        validatePasswordConfirmation(_confirmCtrl.text, _passwordCtrl.text) ==
+            null &&
+        validateMalaysianPhone(_phoneCtrl.text) == null;
+    if (isValid != _isFormValid) {
+      setState(() => _isFormValid = isValid);
+    }
+  }
 
   @override
   void dispose() {
@@ -123,6 +139,7 @@ class _SignupScreenState extends State<SignupScreen> {
         padding: const EdgeInsets.all(24),
         child: Form(
           key: _formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -147,8 +164,8 @@ class _SignupScreenState extends State<SignupScreen> {
                   prefixIcon: Icons.person_outline,
                 ),
                 textCapitalization: TextCapitalization.words,
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Required' : null,
+                validator: validateFullName,
+                onChanged: (_) => _updateFormValidity(),
               ),
               const SizedBox(height: 14),
               TextFormField(
@@ -159,13 +176,8 @@ class _SignupScreenState extends State<SignupScreen> {
                   prefixIcon: Icons.email_outlined,
                 ),
                 keyboardType: TextInputType.emailAddress,
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) return 'Required';
-                  if (!v.contains('@') || !v.contains('.')) {
-                    return 'Enter a valid email';
-                  }
-                  return null;
-                },
+                validator: validateEmailAddress,
+                onChanged: (_) => _updateFormValidity(),
               ),
               const SizedBox(height: 14),
               TextFormField(
@@ -188,13 +200,8 @@ class _SignupScreenState extends State<SignupScreen> {
                         ),
                       ),
                     ),
-                validator: (v) {
-                  if (v == null || v.isEmpty) return 'Required';
-                  if (v.length < 6) {
-                    return 'Password must be at least 6 characters';
-                  }
-                  return null;
-                },
+                validator: validateRegistrationPassword,
+                onChanged: (_) => _updateFormValidity(),
               ),
               const SizedBox(height: 14),
               TextFormField(
@@ -216,13 +223,9 @@ class _SignupScreenState extends State<SignupScreen> {
                             setState(() => _obscureConfirm = !_obscureConfirm),
                       ),
                     ),
-                validator: (v) {
-                  if (v == null || v.isEmpty) return 'Required';
-                  if (v != _passwordCtrl.text) {
-                    return 'Passwords do not match';
-                  }
-                  return null;
-                },
+                validator: (value) =>
+                    validatePasswordConfirmation(value, _passwordCtrl.text),
+                onChanged: (_) => _updateFormValidity(),
               ),
               const SizedBox(height: 14),
               TextFormField(
@@ -239,16 +242,22 @@ class _SignupScreenState extends State<SignupScreen> {
                 controller: _phoneCtrl,
                 decoration: appInputDecoration(
                   label: 'Phone Number (Optional)',
-                  hint: 'e.g. +60-12-345-6789',
+                  hint: 'e.g. 0123456789',
                   prefixIcon: Icons.phone_outlined,
                 ),
                 keyboardType: TextInputType.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(11),
+                ],
+                validator: validateMalaysianPhone,
+                onChanged: (_) => _updateFormValidity(),
               ),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : _handleSignUp,
+                  onPressed: _isLoading || !_isFormValid ? null : _handleSignUp,
                   child: _isLoading
                       ? const SizedBox(
                           height: 20,

@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SessionUnavailableException implements Exception {
@@ -119,4 +122,37 @@ String friendlySupabaseError(
     return 'Unable to load cloud data right now. Please try again.';
   }
   return fallback;
+}
+
+String friendlyPasswordResetError(Object error) {
+  if (error is TimeoutException) {
+    return 'The request timed out. Please check your connection and try again.';
+  }
+  if (error is SocketException || error is AuthRetryableFetchException) {
+    return 'Unable to connect. Please check your internet connection and try again.';
+  }
+  if (error is AuthUnknownException) {
+    final originalError = error.originalError;
+    if (originalError is TimeoutException) {
+      return 'The request timed out. Please check your connection and try again.';
+    }
+    if (originalError is SocketException) {
+      return 'Unable to connect. Please check your internet connection and try again.';
+    }
+  }
+  if (error is AuthException) {
+    final message = error.message.toLowerCase();
+    final code = error.code?.toLowerCase() ?? '';
+    if (message.contains('invalid email') ||
+        code.contains('email_address_invalid')) {
+      return 'Please enter a valid email address.';
+    }
+    if (error.statusCode == '429' ||
+        message.contains('rate limit') ||
+        message.contains('too many requests') ||
+        code.contains('over_email_send_rate_limit')) {
+      return 'Too many reset attempts. Please try again later.';
+    }
+  }
+  return 'Unable to send the password reset email. Please try again.';
 }

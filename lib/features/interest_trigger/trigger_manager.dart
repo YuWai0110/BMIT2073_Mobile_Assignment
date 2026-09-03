@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../services/database/database_service.dart';
+import '../../services/notification/local_notification_service.dart';
 
 class TriggerRule {
   final String id;
@@ -113,10 +114,14 @@ class TriggerNotification {
 }
 
 class TriggerManager extends ChangeNotifier {
-  TriggerManager({LocalDatabase? database})
-    : _database = database ?? DatabaseService.instance;
+  TriggerManager({
+    LocalDatabase? database,
+    this.localNotificationService,
+  }) : _database = database ?? DatabaseService.instance,
+       super();
 
   final LocalDatabase _database;
+  final OprNotificationService? localNotificationService;
   final List<TriggerRule> _rules = [];
   final List<TriggerNotification> _notifications = [];
   Future<void> _pendingWrite = Future.value();
@@ -251,7 +256,16 @@ class TriggerManager extends ChangeNotifier {
         timestamp: DateTime.now(),
       );
       _notifications.insert(0, notification);
-      _queueWrite(() => _database.upsertNotification(notification.toMap()));
+      final localBody =
+          'OPR reached ${currentOPR.toStringAsFixed(2)}%. '
+          'Best time to purchase ${rule.equipmentType}.';
+      _queueWrite(() async {
+        await _database.upsertNotification(notification.toMap());
+        await localNotificationService?.showOprAlert(
+          notificationId: notification.id,
+          body: localBody,
+        );
+      });
     }
 
     if (triggered.isNotEmpty) {

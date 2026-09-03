@@ -8,6 +8,7 @@ import 'features/ai/ai_manager.dart';
 import 'features/auth/auth_manager.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/profile_screen.dart';
+import 'features/auth/reset_password_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
 import 'features/loan_approval/loan_manager.dart';
 import 'features/loan_approval/loan_screen.dart';
@@ -16,6 +17,7 @@ import 'features/calculator_roi/calc_screen.dart';
 import 'features/interest_trigger/trigger_manager.dart';
 import 'features/interest_trigger/trigger_screen.dart';
 import 'services/database/database_service.dart';
+import 'services/notification/local_notification_service.dart';
 import 'services/ai/ai_repository.dart';
 import 'services/ai/gemini_service.dart';
 import 'services/supabase/auth_repository.dart';
@@ -34,8 +36,14 @@ Future<void> main() async {
   final database = DatabaseService.instance;
   await database.initialize();
 
+  final localNotificationService = LocalNotificationService();
+  await localNotificationService.initialize();
+
   final calcManager = CalcManager(database: database);
-  final triggerManager = TriggerManager(database: database);
+  final triggerManager = TriggerManager(
+    database: database,
+    localNotificationService: localNotificationService,
+  );
   final aiManager = AiManager(AiRepository(GeminiService.fromEnvironment()));
   await Future.wait([calcManager.initialize(), triggerManager.initialize()]);
 
@@ -99,14 +107,16 @@ class _AppEntryState extends State<_AppEntry> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_hasCompletedOnboarding) {
-      return OnboardingScreen(
-        onFinished: () => setState(() => _hasCompletedOnboarding = true),
-      );
-    }
-
     return Consumer<AuthManager>(
       builder: (context, auth, _) {
+        if (auth.isPasswordRecovery) {
+          return const ResetPasswordScreen();
+        }
+        if (!_hasCompletedOnboarding) {
+          return OnboardingScreen(
+            onFinished: () => setState(() => _hasCompletedOnboarding = true),
+          );
+        }
         if (!auth.isLoggedIn) {
           return const LoginScreen();
         }

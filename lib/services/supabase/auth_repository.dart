@@ -2,6 +2,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'supabase_service.dart';
 
+const supabaseAuthRedirectUrl = 'bnmsme://login-callback';
+
 class AuthRepository {
   final SupabaseService _service;
 
@@ -23,6 +25,7 @@ class AuthRepository {
     return _service.auth.signUp(
       email: email,
       password: password,
+      emailRedirectTo: supabaseAuthRedirectUrl,
       data: {
         'full_name': fullName,
         'company_name': companyName,
@@ -41,7 +44,13 @@ class AuthRepository {
   Future<void> signOut() => _service.auth.signOut();
 
   Future<void> sendPasswordReset(String email) {
-    return _service.auth.resetPasswordForEmail(email);
+    return _service.auth
+        .resetPasswordForEmail(email, redirectTo: supabaseAuthRedirectUrl)
+        .timeout(const Duration(seconds: 20));
+  }
+
+  Future<UserResponse> updatePassword(String password) {
+    return _service.auth.updateUser(UserAttributes(password: password));
   }
 
   bool isBanker(User user) => user.appMetadata['role'] == 'banker';
