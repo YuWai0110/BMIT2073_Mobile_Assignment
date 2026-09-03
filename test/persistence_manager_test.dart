@@ -163,6 +163,37 @@ void main() {
       await manager.setUser('user-a');
       expect(manager.rules.map((rule) => rule.id), ['user-a-rule']);
     });
+
+    test('isolates notifications by authenticated user', () async {
+      final database = MemoryDatabase();
+      final manager = TriggerManager(database: database);
+      await manager.initialize(userId: 'user-a');
+      manager.addRule(
+        TriggerRule(
+          id: 'user-a-rule',
+          targetOPR: 3,
+          equipmentType: 'AI Vision Inspector',
+        ),
+      );
+      manager.checkTriggers(3, 2026);
+      await manager.waitForPendingWrites();
+
+      expect(manager.notifications, hasLength(1));
+      expect(manager.unreadCount, 1);
+
+      await manager.setUser('user-b');
+      expect(manager.rules, isEmpty);
+      expect(manager.notifications, isEmpty);
+      expect(manager.unreadCount, 0);
+
+      await manager.setUser('user-a');
+      expect(manager.notifications, hasLength(1));
+      expect(manager.unreadCount, 1);
+
+      await manager.setUser(null);
+      expect(manager.notifications, isEmpty);
+      expect(manager.unreadCount, 0);
+    });
   });
 
   testWidgets('TriggerScreen checks persisted rules after the first frame', (
@@ -238,27 +269,34 @@ class MemoryDatabase implements LocalDatabase {
   }
 
   @override
-  Future<List<Map<String, Object?>>> getNotifications() async {
-    return _notifications.values.map(Map<String, Object?>.from).toList();
+  Future<List<Map<String, Object?>>> getNotifications(String userId) async {
+    return _notifications.values
+        .where((row) => row['user_id'] == userId)
+        .map(Map<String, Object?>.from)
+        .toList();
   }
 
   @override
   Future<void> upsertNotification(Map<String, Object?> values) async {
-    _notifications[values['id']! as String] = Map.from(values);
+    _notifications['${values['user_id']}:${values['id']}'] = Map.from(values);
   }
 
   @override
-  Future<void> markNotificationRead(String id, bool isRead) async {
-    _notifications[id]?['isRead'] = isRead ? 1 : 0;
+  Future<void> markNotificationRead(
+    String id,
+    bool isRead,
+    String userId,
+  ) async {
+    _notifications['$userId:$id']?['isRead'] = isRead ? 1 : 0;
   }
 
   @override
-  Future<void> deleteNotification(String id) async {
-    _notifications.remove(id);
+  Future<void> deleteNotification(String id, String userId) async {
+    _notifications.remove('$userId:$id');
   }
 
   @override
-  Future<void> clearNotifications() async {
-    _notifications.clear();
+  Future<void> clearNotifications(String userId) async {
+    _notifications.removeWhere((key, _) => key.startsWith('$userId:'));
   }
 }

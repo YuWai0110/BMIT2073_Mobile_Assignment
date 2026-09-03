@@ -429,17 +429,22 @@ class _DialogDatabase implements LocalDatabase {
   Future<void> deleteTriggerRule(String id, String userId) async {}
 
   @override
-  Future<List<Map<String, Object?>>> getNotifications() async => [];
+  Future<List<Map<String, Object?>>> getNotifications(String userId) async =>
+      [];
 
   @override
   Future<void> upsertNotification(Map<String, Object?> values) async {}
 
   @override
-  Future<void> markNotificationRead(String id, bool isRead) async {}
+  Future<void> markNotificationRead(
+    String id,
+    bool isRead,
+    String userId,
+  ) async {}
 
   @override
-  Future<void> deleteNotification(String id) async {}
+  Future<void> deleteNotification(String id, String userId) async {}
 
   @override
-  Future<void> clearNotifications() async {}
+  Future<void> clearNotifications(String userId) async {}
 }

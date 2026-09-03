@@ -17,15 +17,15 @@ abstract class LocalDatabase {
 
   Future<void> deleteTriggerRule(String id, String userId);
 
-  Future<List<Map<String, Object?>>> getNotifications();
+  Future<List<Map<String, Object?>>> getNotifications(String userId);
 
   Future<void> upsertNotification(Map<String, Object?> values);
 
-  Future<void> markNotificationRead(String id, bool isRead);
+  Future<void> markNotificationRead(String id, bool isRead, String userId);
 
-  Future<void> deleteNotification(String id);
+  Future<void> deleteNotification(String id, String userId);
 
-  Future<void> clearNotifications();
+  Future<void> clearNotifications(String userId);
 }
 
 class DatabaseService implements LocalDatabase {
@@ -34,9 +34,10 @@ class DatabaseService implements LocalDatabase {
   static final DatabaseService instance = DatabaseService._();
 
   static const String databaseName = 'bnm_sme_financing.db';
-  static const int databaseVersion = 3;
+  static const int databaseVersion = 4;
   static const String legacyTriggerOwner = '__legacy__';
   static const String legacyEmiOwner = '__legacy__';
+  static const String legacyNotificationOwner = '__legacy__';
   static const String emiSchemesTable = 'emi_schemes';
   static const String triggerRulesTable = 'trigger_rules';
   static const String notificationsTable = 'notifications';
@@ -91,8 +92,9 @@ class DatabaseService implements LocalDatabase {
     await database.execute('''
       CREATE TABLE $notificationsTable (
         id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL DEFAULT '__legacy__',
         title TEXT NOT NULL,
-        message TEXT NOT NULL UNIQUE,
+        message TEXT NOT NULL,
         timestamp TEXT NOT NULL,
         isRead INTEGER NOT NULL
       )
@@ -104,6 +106,9 @@ class DatabaseService implements LocalDatabase {
     );
     await database.execute(
       'CREATE INDEX idx_emi_user_id ON $emiSchemesTable(user_id)',
+    );
+    await database.execute(
+      'CREATE INDEX idx_notifications_user_id ON $notificationsTable(user_id)',
     );
   }
 
@@ -130,6 +135,35 @@ class DatabaseService implements LocalDatabase {
       await database.execute(
         'CREATE INDEX idx_emi_user_id ON $emiSchemesTable(user_id)',
       );
+    }
+    if (oldVersion < 4) {
+      await database.transaction((transaction) async {
+        await transaction.execute('''
+          CREATE TABLE notifications_v4 (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL DEFAULT '__legacy__',
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            timestamp TEXT NOT NULL,
+            isRead INTEGER NOT NULL
+          )
+        ''');
+        await transaction.execute('''
+          INSERT INTO notifications_v4 (
+            id, user_id, title, message, timestamp, isRead
+          )
+          SELECT id, '$legacyNotificationOwner', title, message, timestamp, isRead
+          FROM $notificationsTable
+        ''');
+        await transaction.execute('DROP TABLE $notificationsTable');
+        await transaction.execute(
+          'ALTER TABLE notifications_v4 RENAME TO $notificationsTable',
+        );
+        await transaction.execute(
+          'CREATE INDEX idx_notifications_user_id '
+          'ON $notificationsTable(user_id)',
+        );
+      });
     }
   }
 
@@ -235,9 +269,10 @@ class DatabaseService implements LocalDatabase {
   }
 
   @override
-  Future<List<Map<String, Object?>>> getNotifications() async {
+  Future<List<Map<String, Object?>>> getNotifications(String userId) async {
     if (kIsWeb) {
       final rows = _webNotifications.values
+          .where((row) => row['user_id'] == userId)
           .map(Map<String, Object?>.from)
           .toList();
       rows.sort(
@@ -247,13 +282,19 @@ class DatabaseService implements LocalDatabase {
       return rows;
     }
     final database = await _readyDatabase;
-    return database.query(notificationsTable, orderBy: 'timestamp DESC');
+    return database.query(
+      notificationsTable,
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      orderBy: 'timestamp DESC',
+    );
   }
 
   @override
   Future<void> upsertNotification(Map<String, Object?> values) async {
     if (kIsWeb) {
-      _webNotifications[values['id']! as String] = Map.from(values);
+      final userId = values['user_id']! as String;
+      _webNotifications['$userId:${values['id']}'] = Map.from(values);
       return;
     }
     final database = await _readyDatabase;
@@ -265,9 +306,13 @@ class DatabaseService implements LocalDatabase {
   }
 
   @override
-  Future<void> markNotificationRead(String id, bool isRead) async {
+  Future<void> markNotificationRead(
+    String id,
+    bool isRead,
+    String userId,
+  ) async {
     if (kIsWeb) {
-      final notification = _webNotifications[id];
+      final notification = _webNotifications['$userId:$id'];
       if (notification != null) {
         notification['isRead'] = isRead ? 1 : 0;
       }
@@ -277,28 +322,36 @@ class DatabaseService implements LocalDatabase {
     await database.update(
       notificationsTable,
       {'isRead': isRead ? 1 : 0},
-      where: 'id = ?',
-      whereArgs: [id],
+      where: 'id = ? AND user_id = ?',
+      whereArgs: [id, userId],
     );
   }
 
   @override
-  Future<void> deleteNotification(String id) async {
+  Future<void> deleteNotification(String id, String userId) async {
     if (kIsWeb) {
-      _webNotifications.remove(id);
+      _webNotifications.remove('$userId:$id');
       return;
     }
     final database = await _readyDatabase;
-    await database.delete(notificationsTable, where: 'id = ?', whereArgs: [id]);
+    await database.delete(
+      notificationsTable,
+      where: 'id = ? AND user_id = ?',
+      whereArgs: [id, userId],
+    );
   }
 
   @override
-  Future<void> clearNotifications() async {
+  Future<void> clearNotifications(String userId) async {
     if (kIsWeb) {
-      _webNotifications.clear();
+      _webNotifications.removeWhere((key, _) => key.startsWith('$userId:'));
       return;
     }
     final database = await _readyDatabase;
-    await database.delete(notificationsTable);
+    await database.delete(
+      notificationsTable,
+      where: 'user_id = ?',
+      whereArgs: [userId],
+    );
   }
 }
