@@ -197,7 +197,7 @@ void main() {
     });
 
     test(
-      'shows one local alert only when a new inbox item is created',
+      'shows one local alert for repeated evaluations of the same event',
       () async {
         final database = MemoryDatabase();
         final localNotifications = FakeOprNotificationService();

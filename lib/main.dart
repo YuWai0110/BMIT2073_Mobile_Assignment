@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/constants.dart';
+import 'core/theme/theme_manager.dart';
 import 'features/ai/ai_manager.dart';
 import 'features/auth/auth_manager.dart';
 import 'features/auth/login_screen.dart';
@@ -27,6 +29,8 @@ import 'services/supabase/supabase_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  final themeManager = ThemeManager(await SharedPreferences.getInstance());
 
   await dotenv.load(fileName: '.env');
   final supabaseUrl = dotenv.get('SUPABASE_URL');
@@ -70,6 +74,7 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider.value(value: themeManager),
         ChangeNotifierProvider.value(value: authManager),
         ChangeNotifierProvider.value(value: loanManager),
         ChangeNotifierProvider.value(value: calcManager),
@@ -90,6 +95,8 @@ class MainApp extends StatelessWidget {
       title: 'BNM SME Financing Platform',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: context.watch<ThemeManager>().themeMode,
       home: const _AppEntry(),
     );
   }

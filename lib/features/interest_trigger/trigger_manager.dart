@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 
 import '../../services/database/database_service.dart';
@@ -114,16 +116,16 @@ class TriggerNotification {
 }
 
 class TriggerManager extends ChangeNotifier {
-  TriggerManager({
-    LocalDatabase? database,
-    this.localNotificationService,
-  }) : _database = database ?? DatabaseService.instance,
-       super();
+  TriggerManager({LocalDatabase? database, this.localNotificationService})
+    : _database = database ?? DatabaseService.instance,
+      super();
 
   final LocalDatabase _database;
   final OprNotificationService? localNotificationService;
   final List<TriggerRule> _rules = [];
   final List<TriggerNotification> _notifications = [];
+  final Set<String> _scheduledLocalEvents = {};
+  final Set<String> _announcedEvents = {};
   Future<void> _pendingWrite = Future.value();
   Future<void>? _initialization;
   String? _currentUserId;
@@ -219,8 +221,13 @@ class TriggerManager extends ChangeNotifier {
     _queueWrite(() => _database.deleteTriggerRule(id, userId));
   }
 
-  List<String> checkTriggers(double currentOPR, int year) {
+  List<String> checkTriggers(
+    double currentOPR,
+    int year, {
+    bool forBanner = false,
+  }) {
     final triggered = <String>[];
+    var hasMatchedRule = false;
     final userId = _currentUserId;
     if (userId == null) return triggered;
 
@@ -236,39 +243,45 @@ class TriggerManager extends ChangeNotifier {
       if (!matches) {
         continue;
       }
+      hasMatchedRule = true;
 
       final direction = isAtOrAbove ? 'at/above' : 'at/below';
       final message =
           '🔔 [$year] OPR ${currentOPR.toStringAsFixed(2)}% is $direction '
           'your target ${rule.targetOPR.toStringAsFixed(2)}% — '
           'Best time to purchase ${rule.equipmentType}!';
-      triggered.add(message);
-
-      if (_notifications.any((item) => item.message == message)) {
-        continue;
+      final eventId = jsonEncode([userId, rule.id, year]);
+      if (!forBanner || _announcedEvents.add(eventId)) {
+        triggered.add(message);
       }
 
-      final notification = TriggerNotification(
-        id: '${rule.id}-${DateTime.now().microsecondsSinceEpoch}',
-        userId: userId,
-        title: 'OPR Trigger Alert',
-        message: message,
-        timestamp: DateTime.now(),
-      );
-      _notifications.insert(0, notification);
+      if (!_notifications.any((item) => item.message == message)) {
+        final notification = TriggerNotification(
+          id: '${rule.id}-${DateTime.now().microsecondsSinceEpoch}',
+          userId: userId,
+          title: 'OPR Trigger Alert',
+          message: message,
+          timestamp: DateTime.now(),
+        );
+        _notifications.insert(0, notification);
+        _queueWrite(() => _database.upsertNotification(notification.toMap()));
+      }
+      final service = localNotificationService;
+      if (service == null || !_scheduledLocalEvents.add(eventId)) continue;
       final localBody =
           'OPR reached ${currentOPR.toStringAsFixed(2)}%. '
           'Best time to purchase ${rule.equipmentType}.';
       _queueWrite(() async {
-        await _database.upsertNotification(notification.toMap());
-        await localNotificationService?.showOprAlert(
-          notificationId: notification.id,
-          body: localBody,
-        );
+        try {
+          await service.showOprAlert(notificationId: eventId, body: localBody);
+        } catch (_) {
+          _scheduledLocalEvents.remove(eventId);
+          rethrow;
+        }
       });
     }
 
-    if (triggered.isNotEmpty) {
+    if (hasMatchedRule) {
       notifyListeners();
     }
     return triggered;

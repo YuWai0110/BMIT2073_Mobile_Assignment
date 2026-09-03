@@ -61,7 +61,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundGrey,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(title: const Text('Reset Password')),
       body: SafeArea(
         child: Center(
@@ -83,7 +83,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                             width: 64,
                             height: 64,
                             decoration: BoxDecoration(
-                              color: AppColors.accentBlue.withValues(alpha: 0.1),
+                              color: AppColors.accentBlue.withValues(
+                                alpha: 0.1,
+                              ),
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: const Icon(
@@ -96,16 +98,17 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         const SizedBox(height: 20),
                         Text(
                           'Choose a New Password',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.darkGrey,
-                          ),
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.textColor(context),
+                              ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           'Enter and confirm the new password for your account.',
                           style: TextStyle(
-                            color: AppColors.mediumGrey,
+                            color: AppTheme.mutedColor(context),
                             fontSize: 13,
                             height: 1.4,
                           ),
@@ -114,23 +117,26 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         TextFormField(
                           controller: _passwordController,
                           obscureText: _obscurePassword,
-                          decoration: appInputDecoration(
-                            label: 'New Password',
-                            prefixIcon: Icons.lock_outline,
-                          ).copyWith(
-                            suffixIcon: IconButton(
-                              onPressed: () => setState(
-                                () => _obscurePassword = !_obscurePassword,
+                          decoration:
+                              appInputDecoration(
+                                label: 'New Password',
+                                prefixIcon: Icons.lock_outline,
+                              ).copyWith(
+                                suffixIcon: IconButton(
+                                  onPressed: () => setState(
+                                    () => _obscurePassword = !_obscurePassword,
+                                  ),
+                                  icon: Icon(
+                                    _obscurePassword
+                                        ? Icons.visibility_off
+                                        : Icons.visibility,
+                                  ),
+                                ),
                               ),
-                              icon: Icon(
-                                _obscurePassword
-                                    ? Icons.visibility_off
-                                    : Icons.visibility,
-                              ),
-                            ),
-                          ),
                           validator: (value) {
-                            if (value == null || value.isEmpty) return 'Required';
+                            if (value == null || value.isEmpty) {
+                              return 'Required';
+                            }
                             if (value.length < 6) {
                               return 'Password must be at least 6 characters';
                             }
@@ -141,24 +147,27 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         TextFormField(
                           controller: _confirmPasswordController,
                           obscureText: _obscureConfirmation,
-                          decoration: appInputDecoration(
-                            label: 'Confirm New Password',
-                            prefixIcon: Icons.lock_outline,
-                          ).copyWith(
-                            suffixIcon: IconButton(
-                              onPressed: () => setState(
-                                () => _obscureConfirmation =
-                                    !_obscureConfirmation,
+                          decoration:
+                              appInputDecoration(
+                                label: 'Confirm New Password',
+                                prefixIcon: Icons.lock_outline,
+                              ).copyWith(
+                                suffixIcon: IconButton(
+                                  onPressed: () => setState(
+                                    () => _obscureConfirmation =
+                                        !_obscureConfirmation,
+                                  ),
+                                  icon: Icon(
+                                    _obscureConfirmation
+                                        ? Icons.visibility_off
+                                        : Icons.visibility,
+                                  ),
+                                ),
                               ),
-                              icon: Icon(
-                                _obscureConfirmation
-                                    ? Icons.visibility_off
-                                    : Icons.visibility,
-                              ),
-                            ),
-                          ),
                           validator: (value) {
-                            if (value == null || value.isEmpty) return 'Required';
+                            if (value == null || value.isEmpty) {
+                              return 'Required';
+                            }
                             if (value != _passwordController.text) {
                               return 'Passwords do not match';
                             }

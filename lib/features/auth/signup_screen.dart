@@ -119,14 +119,14 @@ class _SignupScreenState extends State<SignupScreen> {
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w800,
-            color: AppColors.darkGrey,
+            color: AppTheme.textColor(context),
           ),
         ),
         const SizedBox(height: 8),
         Text(
           'Create an account to monitor rates, apply for financing, and compare repayment plans.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.mediumGrey, height: 1.4),
+          style: TextStyle(color: AppTheme.mutedColor(context), height: 1.4),
         ),
       ],
     );
@@ -147,13 +147,16 @@ class _SignupScreenState extends State<SignupScreen> {
                 'Sign Up',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: AppColors.darkGrey,
+                  color: AppTheme.textColor(context),
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 'Create your SME financing account',
-                style: TextStyle(color: AppColors.mediumGrey, fontSize: 13),
+                style: TextStyle(
+                  color: AppTheme.mutedColor(context),
+                  fontSize: 13,
+                ),
               ),
               const SizedBox(height: 24),
               TextFormField(
@@ -193,7 +196,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           _obscurePassword
                               ? Icons.visibility_off
                               : Icons.visibility,
-                          color: AppColors.mediumGrey,
+                          color: AppTheme.mutedColor(context),
                         ),
                         onPressed: () => setState(
                           () => _obscurePassword = !_obscurePassword,
@@ -217,7 +220,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           _obscureConfirm
                               ? Icons.visibility_off
                               : Icons.visibility,
-                          color: AppColors.mediumGrey,
+                          color: AppTheme.mutedColor(context),
                         ),
                         onPressed: () =>
                             setState(() => _obscureConfirm = !_obscureConfirm),
@@ -278,7 +281,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   children: [
                     Text(
                       'Already have an account? ',
-                      style: TextStyle(color: AppColors.mediumGrey),
+                      style: TextStyle(color: AppTheme.mutedColor(context)),
                     ),
                     TextButton(
                       onPressed: () => Navigator.pop(context),
@@ -300,7 +303,7 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundGrey,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(title: const Text('Create Account')),
       body: SafeArea(
         child: LayoutBuilder(
