@@ -59,6 +59,7 @@ class AuthManager extends ChangeNotifier {
   bool _isBanker = false;
   bool _isInitialized = false;
   bool _isAuthenticating = false;
+  bool _isPasswordRecovery = false;
   String? _notice;
 
   AuthManager(
@@ -87,6 +88,7 @@ class AuthManager extends ChangeNotifier {
   bool get isLoggedIn => _currentUser != null;
   bool get isBanker => _isBanker;
   bool get isInitialized => _isInitialized;
+  bool get isPasswordRecovery => _isPasswordRecovery;
 
   String? takeNotice() {
     final notice = _notice;
@@ -267,15 +269,56 @@ class AuthManager extends ChangeNotifier {
       await repository.sendPasswordReset(email.trim().toLowerCase());
       return null;
     } catch (error) {
-      return _messageFor(error);
+      return friendlyPasswordResetError(error);
     }
   }
 
-  Future<void> _handleAuthState(AuthState _) async {
+  Future<String?> updateRecoveredPassword(String password) async {
+    final repository = _authRepository;
+    if (repository == null) return 'Supabase is not configured.';
+    if (!_isPasswordRecovery || repository.currentSession == null) {
+      return 'This password reset link is invalid or has expired.';
+    }
+
+    _isAuthenticating = true;
+    try {
+      await repository.updatePassword(password);
+      return null;
+    } catch (error) {
+      return _messageFor(error);
+    } finally {
+      _isAuthenticating = false;
+    }
+  }
+
+  Future<void> completePasswordRecovery() async {
+    final repository = _authRepository;
+    _isAuthenticating = true;
+    try {
+      if (repository != null) {
+        await repository.signOut();
+      }
+      _isPasswordRecovery = false;
+      _currentUser = null;
+      _isBanker = false;
+      notifyListeners();
+      await _notifyAuthenticationChanged();
+    } finally {
+      _isAuthenticating = false;
+    }
+  }
+
+  Future<void> _handleAuthState(AuthState state) async {
+    if (state.event == AuthChangeEvent.passwordRecovery) {
+      _isPasswordRecovery = true;
+      notifyListeners();
+      return;
+    }
     if (_isAuthenticating) return;
     final user = _authRepository?.currentUser;
     if (user == null) {
       if (_currentUser != null) {
+        _isPasswordRecovery = false;
         _currentUser = null;
         _isBanker = false;
         notifyListeners();
