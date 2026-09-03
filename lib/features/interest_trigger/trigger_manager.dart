@@ -63,6 +63,7 @@ class TriggerRule {
 
 class TriggerNotification {
   final String id;
+  final String userId;
   final String title;
   final String message;
   final DateTime timestamp;
@@ -70,6 +71,7 @@ class TriggerNotification {
 
   TriggerNotification({
     required this.id,
+    required this.userId,
     required this.title,
     required this.message,
     required this.timestamp,
@@ -79,6 +81,7 @@ class TriggerNotification {
   TriggerNotification copyWith({bool? isRead}) {
     return TriggerNotification(
       id: id,
+      userId: userId,
       title: title,
       message: message,
       timestamp: timestamp,
@@ -89,6 +92,7 @@ class TriggerNotification {
   factory TriggerNotification.fromMap(Map<String, Object?> map) {
     return TriggerNotification(
       id: map['id']! as String,
+      userId: map['user_id']! as String,
       title: map['title']! as String,
       message: map['message']! as String,
       timestamp: DateTime.parse(map['timestamp']! as String),
@@ -99,6 +103,7 @@ class TriggerNotification {
   Map<String, Object?> toMap() {
     return {
       'id': id,
+      'user_id': userId,
       'title': title,
       'message': message,
       'timestamp': timestamp.toIso8601String(),
@@ -134,11 +139,7 @@ class TriggerManager extends ChangeNotifier {
 
   Future<void> _loadPersistedData(String? userId) async {
     _currentUserId = userId;
-    final notificationRows = await _database.getNotifications();
-    _notifications
-      ..clear()
-      ..addAll(notificationRows.map(TriggerNotification.fromMap));
-    await _loadRulesForUser(userId);
+    await _loadDataForUser(userId);
   }
 
   Future<void> setUser(String? userId) async {
@@ -146,7 +147,7 @@ class TriggerManager extends ChangeNotifier {
     await _pendingWrite;
     if (_currentUserId == userId) return;
     _currentUserId = userId;
-    await _loadRulesForUser(userId);
+    await _loadDataForUser(userId);
   }
 
   Future<void> refresh() async {
@@ -155,14 +156,20 @@ class TriggerManager extends ChangeNotifier {
     await _loadPersistedData(_currentUserId);
   }
 
-  Future<void> _loadRulesForUser(String? userId) async {
+  Future<void> _loadDataForUser(String? userId) async {
     final ruleRows = userId == null
         ? <Map<String, Object?>>[]
         : await _database.getTriggerRules(userId);
+    final notificationRows = userId == null
+        ? <Map<String, Object?>>[]
+        : await _database.getNotifications(userId);
     if (_currentUserId != userId) return;
     _rules
       ..clear()
       ..addAll(ruleRows.map(TriggerRule.fromMap));
+    _notifications
+      ..clear()
+      ..addAll(notificationRows.map(TriggerNotification.fromMap));
     notifyListeners();
   }
 
@@ -209,6 +216,8 @@ class TriggerManager extends ChangeNotifier {
 
   List<String> checkTriggers(double currentOPR, int year) {
     final triggered = <String>[];
+    final userId = _currentUserId;
+    if (userId == null) return triggered;
 
     for (final rule in _rules) {
       if (!rule.isEnabled) {
@@ -236,6 +245,7 @@ class TriggerManager extends ChangeNotifier {
 
       final notification = TriggerNotification(
         id: '${rule.id}-${DateTime.now().microsecondsSinceEpoch}',
+        userId: userId,
         title: 'OPR Trigger Alert',
         message: message,
         timestamp: DateTime.now(),
@@ -251,25 +261,31 @@ class TriggerManager extends ChangeNotifier {
   }
 
   void markNotificationRead(String id, {bool isRead = true}) {
+    final userId = _currentUserId;
+    if (userId == null) return;
     final index = _notifications.indexWhere((item) => item.id == id);
     if (index == -1 || _notifications[index].isRead == isRead) {
       return;
     }
     _notifications[index] = _notifications[index].copyWith(isRead: isRead);
     notifyListeners();
-    _queueWrite(() => _database.markNotificationRead(id, isRead));
+    _queueWrite(() => _database.markNotificationRead(id, isRead, userId));
   }
 
   void deleteNotification(String id) {
+    final userId = _currentUserId;
+    if (userId == null) return;
     _notifications.removeWhere((item) => item.id == id);
     notifyListeners();
-    _queueWrite(() => _database.deleteNotification(id));
+    _queueWrite(() => _database.deleteNotification(id, userId));
   }
 
   void clearInbox() {
+    final userId = _currentUserId;
+    if (userId == null) return;
     _notifications.clear();
     notifyListeners();
-    _queueWrite(_database.clearNotifications);
+    _queueWrite(() => _database.clearNotifications(userId));
   }
 
   Future<void> waitForPendingWrites() {
