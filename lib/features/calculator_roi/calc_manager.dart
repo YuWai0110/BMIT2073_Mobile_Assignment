@@ -59,7 +59,7 @@ class CalcScheme {
     );
   }
 
-  Map<String, Object?> toMap() {
+  Map<String, Object?> toMap(String userId) {
     return {
       'id': id,
       'title': title,
@@ -69,6 +69,7 @@ class CalcScheme {
       'loanYears': loanTermMonths / 12,
       'monthlyPayment': monthlyPayment,
       'totalPayment': totalPayment,
+      'user_id': userId,
     };
   }
 }
@@ -81,17 +82,33 @@ class CalcManager extends ChangeNotifier {
   final List<CalcScheme> _schemes = [];
   Future<void> _pendingWrite = Future.value();
   Future<void>? _initialization;
+  String? _currentUserId;
   String? _persistenceError;
 
   List<CalcScheme> get schemes => List.unmodifiable(_schemes);
   String? get persistenceError => _persistenceError;
 
-  Future<void> initialize() {
-    return _initialization ??= _loadSchemes();
+  Future<void> initialize({String? userId}) {
+    return _initialization ??= _loadSchemes(userId);
   }
 
-  Future<void> _loadSchemes() async {
-    final rows = await _database.getEmiSchemes();
+  Future<void> setUser(String? userId) async {
+    await initialize();
+    await _pendingWrite;
+    if (_currentUserId == userId) return;
+    await _loadSchemes(userId);
+  }
+
+  Future<void> refresh() async {
+    await initialize();
+    await _loadSchemes(_currentUserId);
+  }
+
+  Future<void> _loadSchemes(String? userId) async {
+    final rows = userId == null
+        ? <Map<String, Object?>>[]
+        : await _database.getEmiSchemes(userId);
+    _currentUserId = userId;
     _schemes
       ..clear()
       ..addAll(rows.map(CalcScheme.fromMap));
@@ -99,26 +116,36 @@ class CalcManager extends ChangeNotifier {
   }
 
   void saveScheme(CalcScheme scheme) {
+    final userId = _currentUserId;
+    if (userId == null) {
+      _persistenceError = 'No authenticated user is available.';
+      notifyListeners();
+      return;
+    }
     _schemes.add(scheme);
     notifyListeners();
-    final values = scheme.toMap();
+    final values = scheme.toMap(userId);
     _queueWrite(() => _database.upsertEmiScheme(values));
   }
 
   void updateScheme(CalcScheme updated) {
+    final userId = _currentUserId;
+    if (userId == null) return;
     final index = _schemes.indexWhere((s) => s.id == updated.id);
     if (index != -1) {
       _schemes[index] = updated;
       notifyListeners();
-      final values = updated.toMap();
+      final values = updated.toMap(userId);
       _queueWrite(() => _database.upsertEmiScheme(values));
     }
   }
 
   void deleteScheme(String id) {
+    final userId = _currentUserId;
+    if (userId == null) return;
     _schemes.removeWhere((s) => s.id == id);
     notifyListeners();
-    _queueWrite(() => _database.deleteEmiScheme(id));
+    _queueWrite(() => _database.deleteEmiScheme(id, userId));
   }
 
   Future<void> waitForPendingWrites() {

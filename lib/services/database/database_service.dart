@@ -5,11 +5,11 @@ import 'package:sqflite/sqflite.dart';
 abstract class LocalDatabase {
   Future<void> initialize();
 
-  Future<List<Map<String, Object?>>> getEmiSchemes();
+  Future<List<Map<String, Object?>>> getEmiSchemes(String userId);
 
   Future<void> upsertEmiScheme(Map<String, Object?> values);
 
-  Future<void> deleteEmiScheme(String id);
+  Future<void> deleteEmiScheme(String id, String userId);
 
   Future<List<Map<String, Object?>>> getTriggerRules(String userId);
 
@@ -34,8 +34,9 @@ class DatabaseService implements LocalDatabase {
   static final DatabaseService instance = DatabaseService._();
 
   static const String databaseName = 'bnm_sme_financing.db';
-  static const int databaseVersion = 2;
+  static const int databaseVersion = 3;
   static const String legacyTriggerOwner = '__legacy__';
+  static const String legacyEmiOwner = '__legacy__';
   static const String emiSchemesTable = 'emi_schemes';
   static const String triggerRulesTable = 'trigger_rules';
   static const String notificationsTable = 'notifications';
@@ -70,7 +71,8 @@ class DatabaseService implements LocalDatabase {
         interestRate REAL NOT NULL,
         loanYears REAL NOT NULL,
         monthlyPayment REAL NOT NULL,
-        totalPayment REAL NOT NULL
+        totalPayment REAL NOT NULL,
+        user_id TEXT NOT NULL DEFAULT '__legacy__'
       )
     ''');
 
@@ -100,6 +102,9 @@ class DatabaseService implements LocalDatabase {
       'CREATE INDEX idx_trigger_rules_user_id '
       'ON $triggerRulesTable(user_id)',
     );
+    await database.execute(
+      'CREATE INDEX idx_emi_user_id ON $emiSchemesTable(user_id)',
+    );
   }
 
   Future<void> _upgradeSchema(
@@ -117,6 +122,15 @@ class DatabaseService implements LocalDatabase {
         'ON $triggerRulesTable(user_id)',
       );
     }
+    if (oldVersion < 3) {
+      await database.execute(
+        "ALTER TABLE $emiSchemesTable ADD COLUMN user_id TEXT NOT NULL "
+        "DEFAULT '$legacyEmiOwner'",
+      );
+      await database.execute(
+        'CREATE INDEX idx_emi_user_id ON $emiSchemesTable(user_id)',
+      );
+    }
   }
 
   Future<Database> get _readyDatabase async {
@@ -129,18 +143,27 @@ class DatabaseService implements LocalDatabase {
   }
 
   @override
-  Future<List<Map<String, Object?>>> getEmiSchemes() async {
+  Future<List<Map<String, Object?>>> getEmiSchemes(String userId) async {
     if (kIsWeb) {
-      return _webEmiSchemes.values.map(Map<String, Object?>.from).toList();
+      return _webEmiSchemes.values
+          .where((row) => row['user_id'] == userId)
+          .map(Map<String, Object?>.from)
+          .toList();
     }
     final database = await _readyDatabase;
-    return database.query(emiSchemesTable, orderBy: 'rowid ASC');
+    return database.query(
+      emiSchemesTable,
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      orderBy: 'rowid ASC',
+    );
   }
 
   @override
   Future<void> upsertEmiScheme(Map<String, Object?> values) async {
     if (kIsWeb) {
-      _webEmiSchemes[values['id']! as String] = Map.from(values);
+      final userId = values['user_id']! as String;
+      _webEmiSchemes['$userId:${values['id']}'] = Map.from(values);
       return;
     }
     final database = await _readyDatabase;
@@ -152,13 +175,17 @@ class DatabaseService implements LocalDatabase {
   }
 
   @override
-  Future<void> deleteEmiScheme(String id) async {
+  Future<void> deleteEmiScheme(String id, String userId) async {
     if (kIsWeb) {
-      _webEmiSchemes.remove(id);
+      _webEmiSchemes.remove('$userId:$id');
       return;
     }
     final database = await _readyDatabase;
-    await database.delete(emiSchemesTable, where: 'id = ?', whereArgs: [id]);
+    await database.delete(
+      emiSchemesTable,
+      where: 'id = ? AND user_id = ?',
+      whereArgs: [id, userId],
+    );
   }
 
   @override
