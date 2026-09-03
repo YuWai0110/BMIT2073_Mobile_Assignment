@@ -25,10 +25,16 @@ class _SmeView extends StatefulWidget {
 
 class _SmeViewState extends State<_SmeView> {
   final _formKey = GlobalKey<FormState>();
-  final _companyCtrl = TextEditingController();
-  final _amountCtrl = TextEditingController();
-  String _selectedEquipment = MockData.equipmentTypes.first;
-  double _interestRate = 4.5;
+  late final TextEditingController _companyCtrl;
+  late final TextEditingController _amountCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    final manager = context.read<LoanManager>();
+    _companyCtrl = TextEditingController(text: manager.formCompanyName);
+    _amountCtrl = TextEditingController(text: manager.formLoanAmount);
+  }
 
   @override
   void dispose() {
@@ -38,15 +44,17 @@ class _SmeViewState extends State<_SmeView> {
   }
 
   Future<void> _submitApplication() async {
+    final manager = context.read<LoanManager>();
+    manager.showFormValidation();
     if (!_formKey.currentState!.validate()) return;
 
-    final manager = context.read<LoanManager>();
     final req = LoanRequest(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      companyName: _companyCtrl.text.trim(),
-      equipmentName: _selectedEquipment,
-      loanAmount: double.parse(_amountCtrl.text.trim()),
-      interestRate: _interestRate,
+      companyName: manager.formCompanyName.trim(),
+      equipmentName: manager.formEquipmentType,
+      loanAmount: double.parse(manager.formLoanAmount.trim()),
+      interestRate: manager.formInterestRate,
+      repaymentYears: manager.formRepaymentYears,
     );
     final error = await manager.addLoanRequest(req);
     if (!mounted) return;
@@ -65,8 +73,7 @@ class _SmeViewState extends State<_SmeView> {
       return;
     }
 
-    _companyCtrl.clear();
-    _amountCtrl.clear();
+    manager.clearLoanForm();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -79,12 +86,16 @@ class _SmeViewState extends State<_SmeView> {
   }
 
   Widget _buildApplicationForm(BuildContext context) {
+    final manager = context.watch<LoanManager>();
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Form(
           key: _formKey,
+          autovalidateMode: manager.formValidationVisible
+              ? AutovalidateMode.always
+              : AutovalidateMode.disabled,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -101,7 +112,7 @@ class _SmeViewState extends State<_SmeView> {
                       'New Loan Application',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: AppColors.darkGrey,
+                        color: AppTheme.textColor(context),
                       ),
                     ),
                   ),
@@ -117,10 +128,11 @@ class _SmeViewState extends State<_SmeView> {
                 ),
                 validator: (v) =>
                     (v == null || v.trim().isEmpty) ? 'Required' : null,
+                onChanged: manager.updateFormCompanyName,
               ),
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
-                initialValue: _selectedEquipment,
+                initialValue: manager.formEquipmentType,
                 isExpanded: true,
                 decoration: appInputDecoration(
                   label: 'Equipment Type',
@@ -135,7 +147,7 @@ class _SmeViewState extends State<_SmeView> {
                     )
                     .toList(),
                 onChanged: (v) {
-                  if (v != null) setState(() => _selectedEquipment = v);
+                  if (v != null) manager.updateFormEquipmentType(v);
                 },
               ),
               const SizedBox(height: 14),
@@ -154,23 +166,24 @@ class _SmeViewState extends State<_SmeView> {
                   }
                   return null;
                 },
+                onChanged: manager.updateFormLoanAmount,
               ),
               const SizedBox(height: 14),
               Text(
-                'Interest Rate: ${_interestRate.toStringAsFixed(2)}%',
-                style: const TextStyle(
+                'Interest Rate: ${manager.formInterestRate.toStringAsFixed(2)}%',
+                style: TextStyle(
                   fontWeight: FontWeight.w500,
-                  color: AppColors.darkGrey,
+                  color: AppTheme.textColor(context),
                 ),
               ),
               Slider(
-                value: _interestRate,
+                value: manager.formInterestRate,
                 min: 1.0,
                 max: 12.0,
                 divisions: 44,
                 activeColor: AppColors.accentBlue,
-                label: '${_interestRate.toStringAsFixed(2)}%',
-                onChanged: (v) => setState(() => _interestRate = v),
+                label: '${manager.formInterestRate.toStringAsFixed(2)}%',
+                onChanged: manager.updateFormInterestRate,
               ),
               const SizedBox(height: 10),
               SizedBox(
@@ -194,13 +207,13 @@ class _SmeViewState extends State<_SmeView> {
       children: [
         Row(
           children: [
-            Icon(Icons.history, color: AppColors.mediumGrey, size: 20),
+            Icon(Icons.history, color: AppTheme.mutedColor(context), size: 20),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
                 'My Applications (${requests.length})',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: AppColors.mediumGrey,
+                  color: AppTheme.mutedColor(context),
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -219,12 +232,12 @@ class _SmeViewState extends State<_SmeView> {
                     Icon(
                       Icons.inbox_outlined,
                       size: 48,
-                      color: AppColors.lightGrey,
+                      color: AppTheme.subtleColor(context),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'No applications yet',
-                      style: TextStyle(color: AppColors.mediumGrey),
+                      style: TextStyle(color: AppTheme.mutedColor(context)),
                     ),
                   ],
                 ),
@@ -239,7 +252,10 @@ class _SmeViewState extends State<_SmeView> {
 
   @override
   Widget build(BuildContext context) {
-    final requests = context.watch<LoanManager>().allRequests;
+    final manager = context.watch<LoanManager>();
+    final requests = manager.allRequests;
+    _syncController(_companyCtrl, manager.formCompanyName);
+    _syncController(_amountCtrl, manager.formLoanAmount);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -272,6 +288,14 @@ class _SmeViewState extends State<_SmeView> {
                 ),
         );
       },
+    );
+  }
+
+  void _syncController(TextEditingController controller, String value) {
+    if (controller.text == value) return;
+    controller.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
     );
   }
 }
@@ -309,7 +333,7 @@ class _SmeRequestCard extends StatelessWidget {
         ),
         subtitle: Text(
           '${request.companyName} · RM ${request.loanAmount.toStringAsFixed(0)}',
-          style: const TextStyle(color: AppColors.mediumGrey),
+          style: TextStyle(color: AppTheme.mutedColor(context)),
         ),
         trailing: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -350,13 +374,17 @@ class _BankerView extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.folder_open, size: 64, color: AppColors.lightGrey),
+                  Icon(
+                    Icons.folder_open,
+                    size: 64,
+                    color: AppTheme.subtleColor(context),
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     'No loan applications to review',
                     style: TextStyle(
                       fontSize: 16,
-                      color: AppColors.mediumGrey,
+                      color: AppTheme.mutedColor(context),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -482,8 +510,8 @@ class _BankerRequestCard extends StatelessWidget {
                       ),
                       Text(
                         request.equipmentName,
-                        style: const TextStyle(
-                          color: AppColors.mediumGrey,
+                        style: TextStyle(
+                          color: AppTheme.mutedColor(context),
                           fontSize: 13,
                         ),
                       ),
@@ -602,20 +630,20 @@ class _DetailChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.backgroundGrey,
+        color: Theme.of(context).scaffoldBackgroundColor,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: AppColors.mediumGrey),
+          Icon(icon, size: 16, color: AppTheme.mutedColor(context)),
           const SizedBox(width: 4),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w500,
-              color: AppColors.darkGrey,
+              color: AppTheme.textColor(context),
             ),
           ),
         ],

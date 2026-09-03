@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mobile_assginment/core/theme/theme_manager.dart';
 import 'package:mobile_assginment/core/responsive_input_dialog.dart';
 import 'package:mobile_assginment/features/auth/auth_manager.dart';
 import 'package:mobile_assginment/features/auth/login_screen.dart';
@@ -17,17 +19,27 @@ import 'package:mobile_assginment/services/database/database_service.dart';
 import 'package:provider/provider.dart';
 
 const _screenSizes = [Size(390, 844), Size(844, 390), Size(1280, 800)];
+late SharedPreferences _themePreferences;
 
 Future<void> _pumpAtSize(WidgetTester tester, Size size, Widget child) async {
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
-  await tester.pumpWidget(MaterialApp(home: child));
+  await tester.pumpWidget(
+    ChangeNotifierProvider(
+      create: (_) => ThemeManager(_themePreferences),
+      child: MaterialApp(home: child),
+    ),
+  );
   await tester.pumpAndSettle();
 }
 
 void main() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    _themePreferences = await SharedPreferences.getInstance();
+  });
   testWidgets('onboarding supports portrait and landscape sizes', (
     tester,
   ) async {
@@ -133,6 +145,9 @@ void main() {
       await tester.pumpWidget(
         MultiProvider(
           providers: [
+            ChangeNotifierProvider(
+              create: (_) => ThemeManager(_themePreferences),
+            ),
             ChangeNotifierProvider.value(value: auth),
             ChangeNotifierProvider(create: (_) => LoanManager()),
             ChangeNotifierProvider(create: (_) => CalcManager()),
@@ -166,6 +181,9 @@ void main() {
     await tester.pumpWidget(
       MultiProvider(
         providers: [
+          ChangeNotifierProvider(
+            create: (_) => ThemeManager(_themePreferences),
+          ),
           ChangeNotifierProvider.value(value: auth),
           ChangeNotifierProvider(create: (_) => LoanManager()),
           ChangeNotifierProvider(create: (_) => CalcManager()),

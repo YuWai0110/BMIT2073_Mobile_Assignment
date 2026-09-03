@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import 'notification_delivery_guard.dart';
+
 abstract interface class OprNotificationService {
   Future<void> showOprAlert({
     required String notificationId,
@@ -18,6 +20,7 @@ class LocalNotificationService implements OprNotificationService {
   static const channelName = 'OPR Alerts';
 
   final FlutterLocalNotificationsPlugin _plugin;
+  final NotificationDeliveryGuard _deliveryGuard = NotificationDeliveryGuard();
   bool _isInitialized = false;
 
   Future<void> initialize() async {
@@ -67,12 +70,15 @@ class LocalNotificationService implements OprNotificationService {
           priority: Priority.high,
         ),
       );
-      await _plugin.show(
-        id: notificationId.hashCode & 0x7fffffff,
-        title: 'BNM SME Platform',
-        body: body,
-        notificationDetails: details,
-        payload: notificationId,
+      await _deliveryGuard.deliverOnce(
+        notificationId,
+        () => _plugin.show(
+          id: notificationId.hashCode & 0x7fffffff,
+          title: 'BNM SME Platform',
+          body: body,
+          notificationDetails: details,
+          payload: notificationId,
+        ),
       );
     } catch (error) {
       if (kDebugMode) {

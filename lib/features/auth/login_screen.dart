@@ -174,7 +174,7 @@ class _LoginScreenState extends State<LoginScreen> {
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w800,
-              color: AppColors.darkGrey,
+              color: AppTheme.textColor(context),
             ),
           ),
           const SizedBox(height: 4),
@@ -182,7 +182,7 @@ class _LoginScreenState extends State<LoginScreen> {
             'Automation Equipment Financing',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: AppColors.mediumGrey,
+              color: AppTheme.mutedColor(context),
               fontSize: 13,
               letterSpacing: 0.3,
             ),
@@ -206,13 +206,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 'Welcome Back',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: AppColors.darkGrey,
+                  color: AppTheme.textColor(context),
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 'Sign in to your SME account',
-                style: TextStyle(color: AppColors.mediumGrey, fontSize: 13),
+                style: TextStyle(
+                  color: AppTheme.mutedColor(context),
+                  fontSize: 13,
+                ),
               ),
               const SizedBox(height: 24),
               TextFormField(
@@ -247,7 +250,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           _obscurePassword
                               ? Icons.visibility_off
                               : Icons.visibility,
-                          color: AppColors.mediumGrey,
+                          color: AppTheme.mutedColor(context),
                         ),
                         onPressed: () => setState(
                           () => _obscurePassword = !_obscurePassword,
@@ -306,7 +309,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildDemoCard() {
     return Card(
       margin: EdgeInsets.zero,
-      color: AppColors.lightGrey.withValues(alpha: 0.5),
+      color: AppTheme.subtleColor(context).withValues(alpha: 0.5),
       elevation: 0,
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -324,7 +327,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.mediumGrey,
+                    color: AppTheme.mutedColor(context),
                   ),
                 ),
               ],
@@ -380,7 +383,7 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         Text(
           "Don't have an account? ",
-          style: TextStyle(color: AppColors.mediumGrey),
+          style: TextStyle(color: AppTheme.mutedColor(context)),
         ),
         TextButton(
           onPressed: () {
@@ -401,7 +404,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundGrey,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -510,7 +513,7 @@ class _BankerLoginDialogState extends State<_BankerLoginDialog> {
           Text(
             'Sign in with a Supabase account that has the banker role.',
             style: TextStyle(
-              color: AppColors.mediumGrey,
+              color: AppTheme.mutedColor(context),
               fontSize: 13,
               height: 1.4,
             ),

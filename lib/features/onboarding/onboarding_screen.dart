@@ -71,7 +71,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         MediaQuery.orientationOf(context) == Orientation.landscape;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundGrey,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -109,7 +109,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           decoration: BoxDecoration(
                             color: index == _currentPage
                                 ? AppColors.primaryRed
-                                : AppColors.lightGrey,
+                                : AppTheme.subtleColor(context),
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
@@ -167,7 +167,7 @@ class _OnboardingPage extends StatelessWidget {
               content.title,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: AppColors.darkGrey,
+                color: AppTheme.textColor(context),
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -176,7 +176,7 @@ class _OnboardingPage extends StatelessWidget {
               content.description,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: AppColors.mediumGrey,
+                color: AppTheme.mutedColor(context),
                 height: 1.5,
               ),
             ),

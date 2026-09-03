@@ -20,6 +20,14 @@ A banker role can review the same loan applications and approve or reject them.
 
 ## Current Features
 
+### Persistent Theme
+
+- Profile includes a Material 3 Light / Dark / System segmented selector.
+- Theme changes immediately without changing navigation or business state.
+- ThemeManager stores the device-wide preference in SharedPreferences under `theme_mode`.
+- The saved preference is loaded before `runApp`; missing or invalid values default to System.
+- Light and dark themes retain the existing layouts in portrait and landscape.
+
 ### Responsive Layout
 
 - Supports phone and tablet portrait and landscape orientations without locking orientation.
@@ -29,6 +37,7 @@ A banker role can review the same loan applications and approve or reject them.
 - Interest-rate controls and charts adapt to the available width.
 - Profile information uses a two-pane layout in landscape.
 - The four-tab bottom navigation remains available in every orientation.
+- Calculator and loan form drafts remain in their ChangeNotifier managers, so inputs, calculations, editing state, AI progress, and validation survive orientation changes.
 
 ### Introduction and Onboarding
 
@@ -132,7 +141,7 @@ The Home Shell uses a `BottomNavigationBar` and an `IndexedStack`, so tab state 
 | AI advisor | Google Gemini via `google_generative_ai` and `GEMINI_API_KEY` |
 | Supported project targets | Android and Web project folders are included |
 
-No Firebase, SharedPreferences, or external chart package is used.
+SharedPreferences is used only for the theme preference. No Firebase or external chart package is used.
 
 ## Project Structure
 

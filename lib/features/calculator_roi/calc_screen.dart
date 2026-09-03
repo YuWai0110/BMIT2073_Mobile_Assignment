@@ -18,16 +18,8 @@ class CalcScreen extends StatefulWidget {
 }
 
 class _CalcScreenState extends State<CalcScreen> {
-  final _priceCtrl = TextEditingController(text: '0');
-  final _unitCtrl = TextEditingController(text: '0');
-  double _interestRate = 4.5;
-  int _loanTermMonths = 36;
-  String? _editingId;
-  String? _editingTitle;
-
-  double _monthlyPayment = 0;
-  double _totalPayment = 0;
-  double _totalInterest = 0;
+  late final TextEditingController _priceCtrl;
+  late final TextEditingController _unitCtrl;
 
   static const List<int> _termOptions = [
     12,
@@ -50,7 +42,9 @@ class _CalcScreenState extends State<CalcScreen> {
   @override
   void initState() {
     super.initState();
-    _recalculate();
+    final manager = context.read<CalcManager>();
+    _priceCtrl = TextEditingController(text: manager.equipmentPriceText);
+    _unitCtrl = TextEditingController(text: manager.quantityText);
   }
 
   @override
@@ -60,42 +54,34 @@ class _CalcScreenState extends State<CalcScreen> {
     super.dispose();
   }
 
-  void _recalculate() {
-    final price = double.tryParse(_priceCtrl.text) ?? 0;
-    final units = int.tryParse(_unitCtrl.text) ?? 0;
-    final principal = price * units;
-
-    final result = CalcManager.calculateEMI(
-      principal: principal,
-      annualRate: _interestRate,
-      months: _loanTermMonths,
+  void _syncController(TextEditingController controller, String value) {
+    if (controller.text == value) return;
+    controller.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
     );
-
-    setState(() {
-      _monthlyPayment = result['monthlyPayment']!;
-      _totalPayment = result['totalPayment']!;
-      _totalInterest = _totalPayment - principal;
-    });
   }
 
-  void _onCalculatorInputChanged() {
+  void _onCalculatorInputChanged(void Function(CalcManager) update) {
+    update(context.read<CalcManager>());
     context.read<AiManager?>()?.clearRecommendation();
-    _recalculate();
   }
 
   AiAdvisorInput _buildAiInput() {
-    final equipmentPrice = double.tryParse(_priceCtrl.text) ?? 0;
-    final quantity = int.tryParse(_unitCtrl.text) ?? 0;
+    final calculator = context.read<CalcManager>();
+    final equipmentPrice = calculator.formEquipmentPrice;
+    final quantity = calculator.formQuantity;
     final currentOpr = MockData.getDataByYear(2024)?['opr'];
 
     return AiAdvisorInput(
-      equipmentName: _editingTitle ?? 'Automation equipment financing',
+      equipmentName:
+          calculator.editingSchemeTitle ?? 'Automation equipment financing',
       equipmentPrice: equipmentPrice,
       quantity: quantity,
       loanAmount: equipmentPrice * quantity,
-      interestRate: _interestRate,
-      repaymentYears: _loanTermMonths / 12,
-      monthlyEmi: _monthlyPayment,
+      interestRate: calculator.formInterestRate,
+      repaymentYears: calculator.formLoanTermMonths / 12,
+      monthlyEmi: calculator.monthlyPayment,
       currentOpr: currentOpr is num ? currentOpr.toDouble() : 0,
     );
   }
@@ -154,10 +140,14 @@ class _CalcScreenState extends State<CalcScreen> {
   }
 
   Future<void> _saveScheme() async {
-    final price = double.tryParse(_priceCtrl.text) ?? 0;
-    final units = int.tryParse(_unitCtrl.text) ?? 0;
+    final manager = context.read<CalcManager>();
+    final price = manager.formEquipmentPrice;
+    final units = manager.formQuantity;
 
-    if (price <= 0 || units <= 0 || _interestRate < 0 || _interestRate > 20) {
+    if (price <= 0 ||
+        units <= 0 ||
+        manager.formInterestRate < 0 ||
+        manager.formInterestRate > 20) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text(
@@ -173,7 +163,7 @@ class _CalcScreenState extends State<CalcScreen> {
       return;
     }
 
-    final editingId = _editingId;
+    final editingId = manager.editingSchemeId;
     final isEditing = editingId != null;
     final title = await showDialog<String>(
       context: context,
@@ -183,24 +173,20 @@ class _CalcScreenState extends State<CalcScreen> {
 
     if (!mounted || title == null) return;
 
-    final manager = context.read<CalcManager>();
     final scheme = CalcScheme(
       id: editingId ?? DateTime.now().millisecondsSinceEpoch.toString(),
       title: title,
       equipmentPrice: price,
       unitCount: units,
-      loanTermMonths: _loanTermMonths,
-      interestRate: _interestRate,
-      monthlyPayment: _monthlyPayment,
-      totalPayment: _totalPayment,
+      loanTermMonths: manager.formLoanTermMonths,
+      interestRate: manager.formInterestRate,
+      monthlyPayment: manager.monthlyPayment,
+      totalPayment: manager.totalPayment,
     );
 
     if (isEditing) {
       manager.updateScheme(scheme);
-      setState(() {
-        _editingId = null;
-        _editingTitle = null;
-      });
+      manager.finishEditing();
     } else {
       manager.saveScheme(scheme);
     }
@@ -216,15 +202,7 @@ class _CalcScreenState extends State<CalcScreen> {
   }
 
   void _loadScheme(CalcScheme scheme) {
-    setState(() {
-      _editingId = scheme.id;
-      _editingTitle = scheme.title;
-      _priceCtrl.text = scheme.equipmentPrice.toStringAsFixed(0);
-      _unitCtrl.text = scheme.unitCount.toString();
-      _interestRate = scheme.interestRate;
-      _loanTermMonths = scheme.loanTermMonths;
-    });
-    _recalculate();
+    context.read<CalcManager>().loadSchemeForEditing(scheme);
     context.read<AiManager?>()?.clearRecommendation();
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -238,6 +216,7 @@ class _CalcScreenState extends State<CalcScreen> {
   }
 
   Widget _buildInputCard(BuildContext context) {
+    final manager = context.watch<CalcManager>();
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -258,22 +237,15 @@ class _CalcScreenState extends State<CalcScreen> {
                     'ROI Calculator',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: AppColors.darkGrey,
+                      color: AppTheme.textColor(context),
                     ),
                   ),
                 ),
-                if (_editingId != null)
+                if (manager.editingSchemeId != null)
                   TextButton.icon(
                     onPressed: () {
-                      setState(() {
-                        _editingId = null;
-                        _editingTitle = null;
-                      });
-                      _priceCtrl.text = '0';
-                      _unitCtrl.text = '0';
-                      _interestRate = 4.5;
-                      _loanTermMonths = 36;
-                      _onCalculatorInputChanged();
+                      manager.clearEditing();
+                      context.read<AiManager?>()?.clearRecommendation();
                     },
                     icon: const Icon(Icons.clear, size: 16),
                     label: const Text('Clear Edit'),
@@ -303,7 +275,9 @@ class _CalcScreenState extends State<CalcScreen> {
                       : oldValue,
                 ),
               ],
-              onChanged: (_) => _onCalculatorInputChanged(),
+              onChanged: (value) => _onCalculatorInputChanged(
+                (manager) => manager.updateEquipmentPrice(value),
+              ),
             ),
             const SizedBox(height: 14),
             TextFormField(
@@ -324,42 +298,43 @@ class _CalcScreenState extends State<CalcScreen> {
                       : oldValue,
                 ),
               ],
-              onChanged: (_) => _onCalculatorInputChanged(),
+              onChanged: (value) => _onCalculatorInputChanged(
+                (manager) => manager.updateQuantity(value),
+              ),
             ),
             const SizedBox(height: 14),
             Wrap(
               spacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                const Icon(
+                Icon(
                   Icons.percent,
                   size: 18,
-                  color: AppColors.mediumGrey,
+                  color: AppTheme.mutedColor(context),
                 ),
                 Text(
-                  'Annual Interest Rate: ${_interestRate.toStringAsFixed(2)}%',
-                  style: const TextStyle(
+                  'Annual Interest Rate: ${manager.formInterestRate.toStringAsFixed(2)}%',
+                  style: TextStyle(
                     fontWeight: FontWeight.w500,
-                    color: AppColors.darkGrey,
+                    color: AppTheme.textColor(context),
                   ),
                 ),
               ],
             ),
             Slider(
-              value: _interestRate,
+              value: manager.formInterestRate,
               min: 0,
               max: 20,
               divisions: 80,
               activeColor: AppColors.accentBlue,
-              label: '${_interestRate.toStringAsFixed(2)}%',
-              onChanged: (v) {
-                setState(() => _interestRate = v);
-                _onCalculatorInputChanged();
-              },
+              label: '${manager.formInterestRate.toStringAsFixed(2)}%',
+              onChanged: (v) => _onCalculatorInputChanged(
+                (manager) => manager.updateInterestRate(v),
+              ),
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<int>(
-              initialValue: _loanTermMonths,
+              initialValue: manager.formLoanTermMonths,
               isExpanded: true,
               menuMaxHeight: 240,
               decoration: appInputDecoration(
@@ -379,8 +354,9 @@ class _CalcScreenState extends State<CalcScreen> {
                   .toList(),
               onChanged: (v) {
                 if (v != null) {
-                  setState(() => _loanTermMonths = v);
-                  _onCalculatorInputChanged();
+                  _onCalculatorInputChanged(
+                    (manager) => manager.updateLoanTerm(v),
+                  );
                 }
               },
             ),
@@ -391,6 +367,7 @@ class _CalcScreenState extends State<CalcScreen> {
   }
 
   Widget _buildResults(BuildContext context) {
+    final manager = context.watch<CalcManager>();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -404,13 +381,13 @@ class _CalcScreenState extends State<CalcScreen> {
                 final stackPrimaryResults = constraints.maxWidth < 420;
                 final monthly = _ResultTile(
                   label: 'Monthly Payment',
-                  value: 'RM ${_monthlyPayment.toStringAsFixed(2)}',
+                  value: 'RM ${manager.monthlyPayment.toStringAsFixed(2)}',
                   icon: Icons.today,
                   color: AppColors.accentBlue,
                 );
                 final repayment = _ResultTile(
                   label: 'Total Repayment',
-                  value: 'RM ${_totalPayment.toStringAsFixed(2)}',
+                  value: 'RM ${manager.totalPayment.toStringAsFixed(2)}',
                   icon: Icons.account_balance_wallet,
                   color: AppColors.primaryRed,
                 );
@@ -440,7 +417,7 @@ class _CalcScreenState extends State<CalcScreen> {
                     const SizedBox(height: 12),
                     _ResultTile(
                       label: 'Total Interest Payable',
-                      value: 'RM ${_totalInterest.toStringAsFixed(2)}',
+                      value: 'RM ${manager.totalInterest.toStringAsFixed(2)}',
                       icon: Icons.trending_up,
                       color: AppColors.warning,
                     ),
@@ -455,9 +432,13 @@ class _CalcScreenState extends State<CalcScreen> {
         const SizedBox(height: 12),
         ElevatedButton.icon(
           onPressed: _saveScheme,
-          icon: Icon(_editingId != null ? Icons.save : Icons.bookmark_add),
+          icon: Icon(
+            manager.editingSchemeId != null ? Icons.save : Icons.bookmark_add,
+          ),
           label: Text(
-            _editingId != null ? 'Update Saved Scheme' : 'Save This Scheme',
+            manager.editingSchemeId != null
+                ? 'Update Saved Scheme'
+                : 'Save This Scheme',
           ),
         ),
       ],
@@ -489,7 +470,7 @@ class _CalcScreenState extends State<CalcScreen> {
                     'AI Financing Advisor',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: AppColors.darkGrey,
+                      color: AppTheme.textColor(context),
                     ),
                   ),
                 ),
@@ -498,7 +479,10 @@ class _CalcScreenState extends State<CalcScreen> {
             const SizedBox(height: 8),
             Text(
               'Get a financing recommendation based on your current calculation.',
-              style: TextStyle(color: AppColors.mediumGrey, fontSize: 13),
+              style: TextStyle(
+                color: AppTheme.mutedColor(context),
+                fontSize: 13,
+              ),
             ),
             const SizedBox(height: 16),
             if (manager?.isLoading ?? false)
@@ -530,7 +514,7 @@ class _CalcScreenState extends State<CalcScreen> {
           children: [
             Icon(
               Icons.bookmarks_outlined,
-              color: AppColors.mediumGrey,
+              color: AppTheme.mutedColor(context),
               size: 20,
             ),
             const SizedBox(width: 6),
@@ -538,7 +522,7 @@ class _CalcScreenState extends State<CalcScreen> {
               child: Text(
                 'Saved Schemes (${schemes.length})',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: AppColors.mediumGrey,
+                  color: AppTheme.mutedColor(context),
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -557,12 +541,12 @@ class _CalcScreenState extends State<CalcScreen> {
                     Icon(
                       Icons.bookmark_border,
                       size: 48,
-                      color: AppColors.lightGrey,
+                      color: AppTheme.subtleColor(context),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'No saved schemes yet',
-                      style: TextStyle(color: AppColors.mediumGrey),
+                      style: TextStyle(color: AppTheme.mutedColor(context)),
                     ),
                   ],
                 ),
@@ -584,7 +568,10 @@ class _CalcScreenState extends State<CalcScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final schemes = context.watch<CalcManager>().schemes;
+    final manager = context.watch<CalcManager>();
+    final schemes = manager.schemes;
+    _syncController(_priceCtrl, manager.equipmentPriceText);
+    _syncController(_unitCtrl, manager.quantityText);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -701,7 +688,7 @@ class _ResultTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
@@ -717,7 +704,7 @@ class _ResultTile extends StatelessWidget {
                   label,
                   style: TextStyle(
                     fontSize: 11,
-                    color: AppColors.mediumGrey,
+                    color: AppTheme.mutedColor(context),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -784,8 +771,8 @@ class _SchemeCard extends StatelessWidget {
                     Text(
                       '${scheme.unitCount}x · RM ${scheme.equipmentPrice.toStringAsFixed(0)} · '
                       '${scheme.interestRate.toStringAsFixed(2)}% · ${scheme.loanTermMonths}mo',
-                      style: const TextStyle(
-                        color: AppColors.mediumGrey,
+                      style: TextStyle(
+                        color: AppTheme.mutedColor(context),
                         fontSize: 12,
                       ),
                     ),

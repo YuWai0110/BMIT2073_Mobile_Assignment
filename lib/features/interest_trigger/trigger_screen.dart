@@ -1,3 +1,5 @@
+import 'dart:ui' show FlutterView;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -30,6 +32,7 @@ class _TriggerScreenState extends State<TriggerScreen> {
   }
 
   void _updateRates(double yearDouble) {
+    if (!mounted) return;
     final year = yearDouble.round();
     final data = MockData.getDataByYear(year);
     if (data != null) {
@@ -41,7 +44,11 @@ class _TriggerScreenState extends State<TriggerScreen> {
       });
 
       final manager = context.read<TriggerManager>();
-      final triggered = manager.checkTriggers(_currentOPR, year);
+      final triggered = manager.checkTriggers(
+        _currentOPR,
+        year,
+        forBanner: true,
+      );
       if (triggered.isNotEmpty) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -69,148 +76,23 @@ class _TriggerScreenState extends State<TriggerScreen> {
   }
 
   void _showNotificationInbox() {
+    if (!mounted) return;
+    final manager = context.read<TriggerManager>();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => Consumer<TriggerManager>(
-        builder: (_, manager, _) {
-          final notifications = manager.notifications;
-          return DraggableScrollableSheet(
-            initialChildSize: 0.5,
-            maxChildSize: 0.85,
-            minChildSize: 0.3,
-            expand: false,
-            builder: (_, scrollCtrl) => Column(
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(top: 12),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.lightGrey,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.notifications_active,
-                        color: AppColors.accentBlue,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Notification Inbox (${notifications.length})',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                      if (notifications.isNotEmpty)
-                        TextButton(
-                          onPressed: () {
-                            manager.clearInbox();
-                            Navigator.pop(ctx);
-                          },
-                          child: const Text('Clear All'),
-                        ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: notifications.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.notifications_off,
-                                size: 48,
-                                color: AppColors.lightGrey,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'No notifications yet',
-                                style: TextStyle(color: AppColors.mediumGrey),
-                              ),
-                            ],
-                          ),
-                        )
-                      : ListView.separated(
-                          controller: scrollCtrl,
-                          padding: const EdgeInsets.all(12),
-                          itemCount: notifications.length,
-                          separatorBuilder: (_, _) => const Divider(height: 1),
-                          itemBuilder: (_, index) {
-                            final notification = notifications[index];
-                            return ListTile(
-                              onTap: () =>
-                                  manager.markNotificationRead(notification.id),
-                              leading: CircleAvatar(
-                                backgroundColor: notification.isRead
-                                    ? AppColors.lightGrey.withValues(alpha: 0.3)
-                                    : const Color(0xFFE8F5E9),
-                                child: Icon(
-                                  notification.isRead
-                                      ? Icons.notifications_none
-                                      : Icons.notifications,
-                                  color: notification.isRead
-                                      ? AppColors.mediumGrey
-                                      : AppColors.success,
-                                  size: 20,
-                                ),
-                              ),
-                              title: Text(
-                                notification.message,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: notification.isRead
-                                      ? FontWeight.normal
-                                      : FontWeight.w600,
-                                ),
-                              ),
-                              subtitle: Text(
-                                _formatNotificationTimestamp(
-                                  notification.timestamp,
-                                ),
-                              ),
-                              trailing: IconButton(
-                                tooltip: 'Delete notification',
-                                onPressed: () =>
-                                    manager.deleteNotification(notification.id),
-                                icon: const Icon(Icons.delete_outline),
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
-          );
-        },
+      builder: (_) => ChangeNotifierProvider.value(
+        value: manager,
+        child: const _NotificationInbox(),
       ),
     );
   }
 
-  String _formatNotificationTimestamp(DateTime timestamp) {
-    final local = timestamp.toLocal();
-    final month = local.month.toString().padLeft(2, '0');
-    final day = local.day.toString().padLeft(2, '0');
-    final hour = local.hour.toString().padLeft(2, '0');
-    final minute = local.minute.toString().padLeft(2, '0');
-    return '${local.year}-$month-$day $hour:$minute';
-  }
-
   Future<void> _showAddRuleDialog({TriggerRule? existing}) async {
+    if (!mounted) return;
     final result = await showDialog<_TriggerRuleInput>(
       context: context,
       useSafeArea: false,
@@ -237,7 +119,7 @@ class _TriggerScreenState extends State<TriggerScreen> {
       );
     }
 
-    manager.checkTriggers(_currentOPR, _selectedYear.round());
+    _updateRates(_selectedYear);
   }
 
   @override
@@ -275,7 +157,7 @@ class _TriggerScreenState extends State<TriggerScreen> {
                                 style: Theme.of(context).textTheme.titleMedium
                                     ?.copyWith(
                                       fontWeight: FontWeight.bold,
-                                      color: AppColors.darkGrey,
+                                      color: AppTheme.textColor(context),
                                     ),
                               ),
                             ),
@@ -285,7 +167,7 @@ class _TriggerScreenState extends State<TriggerScreen> {
                         Text(
                           'Drag the slider to simulate historical OPR rates from data.gov.my',
                           style: TextStyle(
-                            color: AppColors.mediumGrey,
+                            color: AppTheme.mutedColor(context),
                             fontSize: 12,
                           ),
                         ),
@@ -357,7 +239,7 @@ class _TriggerScreenState extends State<TriggerScreen> {
                                 style: Theme.of(context).textTheme.titleMedium
                                     ?.copyWith(
                                       fontWeight: FontWeight.bold,
-                                      color: AppColors.darkGrey,
+                                      color: AppTheme.textColor(context),
                                     ),
                               ),
                             ),
@@ -367,7 +249,7 @@ class _TriggerScreenState extends State<TriggerScreen> {
                         Text(
                           'OPR · Base Rate · Lending Rate',
                           style: TextStyle(
-                            color: AppColors.mediumGrey,
+                            color: AppTheme.mutedColor(context),
                             fontSize: 12,
                           ),
                         ),
@@ -418,12 +300,16 @@ class _TriggerScreenState extends State<TriggerScreen> {
                 Row(
                   children: [
                     const SizedBox(width: 16),
-                    Icon(Icons.rule, color: AppColors.mediumGrey, size: 20),
+                    Icon(
+                      Icons.rule,
+                      color: AppTheme.mutedColor(context),
+                      size: 20,
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       'Trigger Rules (${rules.length})',
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: AppColors.mediumGrey,
+                        color: AppTheme.mutedColor(context),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -441,18 +327,20 @@ class _TriggerScreenState extends State<TriggerScreen> {
                             Icon(
                               Icons.notifications_none,
                               size: 48,
-                              color: AppColors.lightGrey,
+                              color: AppTheme.subtleColor(context),
                             ),
                             const SizedBox(height: 8),
                             Text(
                               'No trigger rules yet',
-                              style: TextStyle(color: AppColors.mediumGrey),
+                              style: TextStyle(
+                                color: AppTheme.mutedColor(context),
+                              ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'Tap + to add an OPR alert rule',
                               style: TextStyle(
-                                color: AppColors.mediumGrey,
+                                color: AppTheme.mutedColor(context),
                                 fontSize: 12,
                               ),
                             ),
@@ -493,12 +381,12 @@ class _TriggerScreenState extends State<TriggerScreen> {
                           leading: CircleAvatar(
                             backgroundColor: rule.isEnabled
                                 ? AppColors.success.withValues(alpha: 0.12)
-                                : AppColors.lightGrey,
+                                : AppTheme.subtleColor(context),
                             child: Icon(
                               Icons.notifications_active,
                               color: rule.isEnabled
                                   ? AppColors.success
-                                  : AppColors.mediumGrey,
+                                  : AppTheme.mutedColor(context),
                               size: 20,
                             ),
                           ),
@@ -511,8 +399,8 @@ class _TriggerScreenState extends State<TriggerScreen> {
                           ),
                           subtitle: Text(
                             'Alert when OPR ≤ ${rule.targetOPR.toStringAsFixed(2)}%',
-                            style: const TextStyle(
-                              color: AppColors.mediumGrey,
+                            style: TextStyle(
+                              color: AppTheme.mutedColor(context),
                               fontSize: 12,
                             ),
                           ),
@@ -715,16 +603,22 @@ class _YearSelector extends StatelessWidget {
             onChanged: onChanged,
           ),
         ),
-        const Row(
+        Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
               '1997',
-              style: TextStyle(fontSize: 11, color: AppColors.mediumGrey),
+              style: TextStyle(
+                fontSize: 11,
+                color: AppTheme.mutedColor(context),
+              ),
             ),
             Text(
               '2026',
-              style: TextStyle(fontSize: 11, color: AppColors.mediumGrey),
+              style: TextStyle(
+                fontSize: 11,
+                color: AppTheme.mutedColor(context),
+              ),
             ),
           ],
         ),
@@ -824,7 +718,7 @@ class _LegendDot extends StatelessWidget {
           label,
           style: TextStyle(
             fontSize: 11,
-            color: AppColors.mediumGrey,
+            color: AppTheme.mutedColor(context),
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -1008,5 +902,202 @@ class _RateChartPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _RateChartPainter oldDelegate) {
     return oldDelegate.selectedYear != selectedYear;
+  }
+}
+
+class _NotificationInbox extends StatefulWidget {
+  const _NotificationInbox();
+
+  @override
+  State<_NotificationInbox> createState() => _NotificationInboxState();
+}
+
+class _NotificationInboxState extends State<_NotificationInbox>
+    with WidgetsBindingObserver {
+  FlutterView? _view;
+  NavigatorState? _navigator;
+  ModalRoute<dynamic>? _route;
+  bool? _openedLandscape;
+  bool _closing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _view = View.of(context);
+    _navigator = Navigator.of(context);
+    _route = ModalRoute.of(context);
+    final size = _view!.physicalSize;
+    _openedLandscape ??= size.width > size.height;
+  }
+
+  @override
+  void didChangeMetrics() {
+    if (!mounted || _closing) return;
+    final size = _view?.physicalSize;
+    if (size == null || _openedLandscape == null) return;
+    if ((size.width > size.height) == _openedLandscape) return;
+    final navigator = _navigator;
+    final route = _route;
+    if (navigator == null ||
+        !navigator.mounted ||
+        route == null ||
+        !route.isActive) {
+      return;
+    }
+    _closing = true;
+    navigator.removeRoute(route);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<TriggerManager>(
+      builder: (context, manager, _) {
+        final notifications = manager.notifications;
+        return DraggableScrollableSheet(
+          initialChildSize: 0.5,
+          maxChildSize: 0.85,
+          minChildSize: 0.3,
+          expand: false,
+          builder: (_, scrollCtrl) => Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppTheme.subtleColor(context),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.notifications_active,
+                      color: AppColors.accentBlue,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Notification Inbox (${notifications.length})',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    if (notifications.isNotEmpty)
+                      TextButton(
+                        onPressed: () {
+                          manager.clearInbox();
+                          if (!context.mounted) return;
+                          Navigator.pop(context);
+                        },
+                        child: const Text('Clear All'),
+                      ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: notifications.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.notifications_off,
+                              size: 48,
+                              color: AppTheme.subtleColor(context),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'No notifications yet',
+                              style: TextStyle(
+                                color: AppTheme.mutedColor(context),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.separated(
+                        controller: scrollCtrl,
+                        padding: const EdgeInsets.all(12),
+                        itemCount: notifications.length,
+                        separatorBuilder: (_, _) => const Divider(height: 1),
+                        itemBuilder: (_, index) {
+                          final notification = notifications[index];
+                          return ListTile(
+                            onTap: () =>
+                                manager.markNotificationRead(notification.id),
+                            leading: CircleAvatar(
+                              backgroundColor: notification.isRead
+                                  ? AppTheme.subtleColor(
+                                      context,
+                                    ).withValues(alpha: 0.3)
+                                  : const Color(0xFFE8F5E9),
+                              child: Icon(
+                                notification.isRead
+                                    ? Icons.notifications_none
+                                    : Icons.notifications,
+                                color: notification.isRead
+                                    ? AppTheme.mutedColor(context)
+                                    : AppColors.success,
+                                size: 20,
+                              ),
+                            ),
+                            title: Text(
+                              notification.message,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: notification.isRead
+                                    ? FontWeight.normal
+                                    : FontWeight.w600,
+                              ),
+                            ),
+                            subtitle: Text(
+                              _formatNotificationTimestamp(
+                                notification.timestamp,
+                              ),
+                            ),
+                            trailing: IconButton(
+                              tooltip: 'Delete notification',
+                              onPressed: () =>
+                                  manager.deleteNotification(notification.id),
+                              icon: const Icon(Icons.delete_outline),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatNotificationTimestamp(DateTime timestamp) {
+    final local = timestamp.toLocal();
+    final month = local.month.toString().padLeft(2, '0');
+    final day = local.day.toString().padLeft(2, '0');
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '${local.year}-$month-$day $hour:$minute';
   }
 }

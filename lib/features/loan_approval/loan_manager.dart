@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../services/supabase/loan_repository.dart';
 import '../../services/supabase/supabase_service.dart';
+import '../../core/mock_data.dart';
 
 enum LoanStatus {
   pending('Pending', '⏳', 'pending'),
@@ -100,12 +101,67 @@ class LoanManager extends ChangeNotifier {
   final List<LoanRequest> _requests = [];
   bool _isLoading = false;
   String? _lastError;
+  String _formCompanyName = '';
+  String _formLoanAmount = '';
+  String _formEquipmentType = MockData.equipmentTypes.first;
+  double _formInterestRate = 4.5;
+  int _formRepaymentYears = 5;
+  bool _formValidationVisible = false;
 
   LoanManager([this._repository]);
 
   List<LoanRequest> get allRequests => List.unmodifiable(_requests);
   bool get isLoading => _isLoading;
   String? get lastError => _lastError;
+  String get formCompanyName => _formCompanyName;
+  String get formLoanAmount => _formLoanAmount;
+  String get formEquipmentType => _formEquipmentType;
+  double get formInterestRate => _formInterestRate;
+  int get formRepaymentYears => _formRepaymentYears;
+  bool get formValidationVisible => _formValidationVisible;
+
+  void updateFormCompanyName(String value) {
+    if (_formCompanyName == value) return;
+    _formCompanyName = value;
+    notifyListeners();
+  }
+
+  void updateFormLoanAmount(String value) {
+    if (_formLoanAmount == value) return;
+    _formLoanAmount = value;
+    notifyListeners();
+  }
+
+  void updateFormEquipmentType(String value) {
+    if (_formEquipmentType == value) return;
+    _formEquipmentType = value;
+    notifyListeners();
+  }
+
+  void updateFormInterestRate(double value) {
+    if (_formInterestRate == value) return;
+    _formInterestRate = value;
+    notifyListeners();
+  }
+
+  void updateFormRepaymentYears(int value) {
+    if (_formRepaymentYears == value) return;
+    _formRepaymentYears = value;
+    notifyListeners();
+  }
+
+  void showFormValidation() {
+    if (_formValidationVisible) return;
+    _formValidationVisible = true;
+    notifyListeners();
+  }
+
+  void clearLoanForm() {
+    _formCompanyName = '';
+    _formLoanAmount = '';
+    _formValidationVisible = false;
+    notifyListeners();
+  }
 
   Future<void> initialize() => loadApplications();
 

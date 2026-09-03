@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
+import '../../core/theme/theme_manager.dart';
 import 'auth_manager.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -113,14 +114,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.bold,
-              color: AppColors.darkGrey,
+              color: AppTheme.textColor(context),
             ),
           ),
           const SizedBox(height: 4),
           Text(
             user.email,
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.mediumGrey, fontSize: 14),
+            style: TextStyle(color: AppTheme.mutedColor(context), fontSize: 14),
           ),
           if (auth.isBanker) ...[
             const SizedBox(height: 8),
@@ -178,7 +179,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     'Profile Information',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: AppColors.darkGrey,
+                      color: AppTheme.textColor(context),
                     ),
                   ),
                 ),
@@ -247,13 +248,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           subtitle: Text(
             'Sign out of your account',
-            style: TextStyle(color: AppColors.mediumGrey, fontSize: 12),
+            style: TextStyle(color: AppTheme.mutedColor(context), fontSize: 12),
           ),
-          trailing: const Icon(
+          trailing: Icon(
             Icons.chevron_right,
-            color: AppColors.mediumGrey,
+            color: AppTheme.mutedColor(context),
           ),
           onTap: _handleLogout,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThemeCard(BuildContext context) {
+    final manager = context.watch<ThemeManager>();
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Theme', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            SegmentedButton<ThemeMode>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: ThemeMode.light, label: Text('Light')),
+                ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
+                ButtonSegment(value: ThemeMode.system, label: Text('System')),
+              ],
+              selected: {manager.themeMode},
+              onSelectionChanged: (selection) async {
+                final saved = await manager.setThemeMode(selection.single);
+                if (!context.mounted || saved) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Unable to save theme preference. Please try again.',
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -298,7 +336,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Text(
                             'BNM SME Platform v0.1.0',
                             style: TextStyle(
-                              color: AppColors.mediumGrey,
+                              color: AppTheme.mutedColor(context),
                               fontSize: 12,
                             ),
                           ),
@@ -308,7 +346,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(width: 20),
                     Expanded(
                       flex: 3,
-                      child: _buildInformationCard(context, auth, user),
+                      child: Column(
+                        children: [
+                          _buildInformationCard(context, auth, user),
+                          const SizedBox(height: 16),
+                          _buildThemeCard(context),
+                        ],
+                      ),
                     ),
                   ],
                 )
@@ -319,12 +363,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 28),
                     _buildInformationCard(context, auth, user),
                     const SizedBox(height: 16),
+                    _buildThemeCard(context),
+                    const SizedBox(height: 16),
                     _buildLogoutCard(),
                     const SizedBox(height: 28),
                     Text(
                       'BNM SME Platform v0.1.0',
                       style: TextStyle(
-                        color: AppColors.mediumGrey,
+                        color: AppTheme.mutedColor(context),
                         fontSize: 12,
                       ),
                     ),
@@ -365,7 +411,7 @@ class _ProfileField extends StatelessWidget {
 
     return Row(
       children: [
-        Icon(icon, size: 20, color: AppColors.mediumGrey),
+        Icon(icon, size: 20, color: AppTheme.mutedColor(context)),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -375,17 +421,17 @@ class _ProfileField extends StatelessWidget {
                 label,
                 style: TextStyle(
                   fontSize: 11,
-                  color: AppColors.mediumGrey,
+                  color: AppTheme.mutedColor(context),
                   fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 displayValue.isNotEmpty ? displayValue : '—',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
-                  color: AppColors.darkGrey,
+                  color: AppTheme.textColor(context),
                 ),
               ),
             ],

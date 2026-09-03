@@ -76,7 +76,9 @@ class CalcScheme {
 
 class CalcManager extends ChangeNotifier {
   CalcManager({LocalDatabase? database})
-    : _database = database ?? DatabaseService.instance;
+    : _database = database ?? DatabaseService.instance {
+    _recalculateForm();
+  }
 
   final LocalDatabase _database;
   final List<CalcScheme> _schemes = [];
@@ -84,9 +86,98 @@ class CalcManager extends ChangeNotifier {
   Future<void>? _initialization;
   String? _currentUserId;
   String? _persistenceError;
+  String _equipmentPriceText = '0';
+  String _quantityText = '0';
+  double _formInterestRate = 4.5;
+  int _formLoanTermMonths = 36;
+  String? _editingSchemeId;
+  String? _editingSchemeTitle;
+  double _monthlyPayment = 0;
+  double _totalPayment = 0;
+  double _totalInterest = 0;
 
   List<CalcScheme> get schemes => List.unmodifiable(_schemes);
   String? get persistenceError => _persistenceError;
+  String get equipmentPriceText => _equipmentPriceText;
+  String get quantityText => _quantityText;
+  double get formInterestRate => _formInterestRate;
+  int get formLoanTermMonths => _formLoanTermMonths;
+  String? get editingSchemeId => _editingSchemeId;
+  String? get editingSchemeTitle => _editingSchemeTitle;
+  double get monthlyPayment => _monthlyPayment;
+  double get totalPayment => _totalPayment;
+  double get totalInterest => _totalInterest;
+  double get formEquipmentPrice => double.tryParse(_equipmentPriceText) ?? 0;
+  int get formQuantity => int.tryParse(_quantityText) ?? 0;
+
+  void updateEquipmentPrice(String value) {
+    if (_equipmentPriceText == value) return;
+    _equipmentPriceText = value;
+    _recalculateForm();
+    notifyListeners();
+  }
+
+  void updateQuantity(String value) {
+    if (_quantityText == value) return;
+    _quantityText = value;
+    _recalculateForm();
+    notifyListeners();
+  }
+
+  void updateInterestRate(double value) {
+    if (_formInterestRate == value) return;
+    _formInterestRate = value;
+    _recalculateForm();
+    notifyListeners();
+  }
+
+  void updateLoanTerm(int months) {
+    if (_formLoanTermMonths == months) return;
+    _formLoanTermMonths = months;
+    _recalculateForm();
+    notifyListeners();
+  }
+
+  void loadSchemeForEditing(CalcScheme scheme) {
+    _editingSchemeId = scheme.id;
+    _editingSchemeTitle = scheme.title;
+    _equipmentPriceText = scheme.equipmentPrice.toStringAsFixed(0);
+    _quantityText = scheme.unitCount.toString();
+    _formInterestRate = scheme.interestRate;
+    _formLoanTermMonths = scheme.loanTermMonths;
+    _recalculateForm();
+    notifyListeners();
+  }
+
+  void clearEditing() {
+    _editingSchemeId = null;
+    _editingSchemeTitle = null;
+    _equipmentPriceText = '0';
+    _quantityText = '0';
+    _formInterestRate = 4.5;
+    _formLoanTermMonths = 36;
+    _recalculateForm();
+    notifyListeners();
+  }
+
+  void finishEditing() {
+    if (_editingSchemeId == null) return;
+    _editingSchemeId = null;
+    _editingSchemeTitle = null;
+    notifyListeners();
+  }
+
+  void _recalculateForm() {
+    final principal = formEquipmentPrice * formQuantity;
+    final result = calculateEMI(
+      principal: principal,
+      annualRate: _formInterestRate,
+      months: _formLoanTermMonths,
+    );
+    _monthlyPayment = result['monthlyPayment']!;
+    _totalPayment = result['totalPayment']!;
+    _totalInterest = _totalPayment - principal;
+  }
 
   Future<void> initialize({String? userId}) {
     return _initialization ??= _loadSchemes(userId);
