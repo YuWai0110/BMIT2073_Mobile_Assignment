@@ -57,6 +57,7 @@ Future<void> main() async {
     AuthRepository(supabaseService),
     ProfileRepository(supabaseService),
     onAuthenticationChanged: (user) async {
+      loanManager.setUser(user?.id);
       await Future.wait([
         loanManager.loadApplications(),
         triggerManager.setUser(user?.id),
@@ -65,6 +66,7 @@ Future<void> main() async {
     },
   );
   await authManager.initialize();
+  loanManager.setUser(authManager.currentUser?.id);
   await Future.wait([
     loanManager.initialize(),
     triggerManager.setUser(authManager.currentUser?.id),

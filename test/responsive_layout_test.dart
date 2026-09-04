@@ -295,7 +295,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tester.enterText(find.byType(TextFormField).at(0), '50000');
+        await tester.enterText(find.byType(TextFormField).at(0), '50000.00');
         await tester.enterText(find.byType(TextFormField).at(1), '1');
         await tester.pumpAndSettle();
         await tester.ensureVisible(find.text('Save This Scheme'));
@@ -389,17 +389,19 @@ void main() {
     expect(tester.widget<TextFormField>(fields.at(1)).controller!.text, '0');
 
     await tester.enterText(fields.at(1), '-5');
-    expect(tester.widget<TextFormField>(fields.at(1)).controller!.text, '0');
+    expect(tester.widget<TextFormField>(fields.at(1)).controller!.text, '-5');
 
     await tester.ensureVisible(find.text('Save This Scheme'));
-    await tester.tap(find.text('Save This Scheme'));
     await tester.pumpAndSettle();
     expect(
-      find.text(
-        'Enter a price above RM 0, a quantity above 0, and an interest rate from 0% to 20%.',
-      ),
-      findsOneWidget,
+      tester
+          .widget<ElevatedButton>(
+            find.widgetWithText(ElevatedButton, 'Save This Scheme'),
+          )
+          .onPressed,
+      isNull,
     );
+    expect(find.text('Enter a whole number from 1 to 999.'), findsOneWidget);
 
     await tester.tap(find.byType(DropdownButtonFormField<int>));
     await tester.pumpAndSettle();

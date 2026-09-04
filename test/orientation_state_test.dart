@@ -20,7 +20,7 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       tester.view.devicePixelRatio = 1;
       final calc = CalcManager();
-      calc.updateEquipmentPrice('50000');
+      calc.updateEquipmentPrice('50000.00');
       calc.updateQuantity('2');
       calc.updateInterestRate(6.25);
       calc.updateLoanTerm(84);
@@ -67,7 +67,7 @@ void main() {
             .widget<TextFormField>(find.byType(TextFormField).at(0))
             .controller
             ?.text,
-        '50000',
+        '50000.00',
       );
       await tester.ensureVisible(find.text('Generate AI Advice'));
       await tester.tap(find.text('Generate AI Advice'));
@@ -93,7 +93,7 @@ void main() {
       await tester.ensureVisible(find.text('Low Risk'));
       expect(find.text('Low Risk'), findsOneWidget);
       expect(ai.recommendation?.confidence, 91);
-      expect(calc.equipmentPriceText, '50000');
+      expect(calc.equipmentPriceText, '50000.00');
       expect(calc.quantityText, '2');
       expect(find.text('Update Saved Scheme'), findsOneWidget);
     },
@@ -133,9 +133,19 @@ void main() {
     manager.updateFormInterestRate(7.5);
     manager.updateFormRepaymentYears(7);
     await tester.ensureVisible(find.text('Submit Application'));
-    await tester.tap(find.text('Submit Application'));
+    expect(
+      tester
+          .widget<ElevatedButton>(
+            find.widgetWithText(ElevatedButton, 'Submit Application'),
+          )
+          .onPressed,
+      isNull,
+    );
     await tester.pump();
-    expect(find.text('Enter a valid number'), findsOneWidget);
+    expect(
+      find.text('Enter amount in RM format (e.g. 5000.00).'),
+      findsOneWidget,
+    );
     expect(manager.formValidationVisible, isTrue);
 
     await pump(const Size(844, 390));
@@ -145,7 +155,10 @@ void main() {
     expect(manager.formInterestRate, 7.5);
     expect(manager.formRepaymentYears, 7);
     expect(manager.formValidationVisible, isTrue);
-    expect(find.text('Enter a valid number'), findsOneWidget);
+    expect(
+      find.text('Enter amount in RM format (e.g. 5000.00).'),
+      findsOneWidget,
+    );
     expect(
       tester
           .widget<TextFormField>(find.byType(TextFormField).at(0))
@@ -155,7 +168,10 @@ void main() {
     );
 
     await pump(const Size(390, 844));
-    expect(find.text('Enter a valid number'), findsOneWidget);
+    expect(
+      find.text('Enter amount in RM format (e.g. 5000.00).'),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 }
