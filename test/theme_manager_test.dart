@@ -79,7 +79,7 @@ void main() {
           child: const MainApp(),
         ),
       );
-      await tester.tap(find.text('Skip'));
+      expect(find.text('Skip'), findsNothing);
       await tester.pumpAndSettle();
       for (final label in ['Loans', 'Calculator', 'Profile', 'Rates']) {
         await tester.tap(find.text(label));
@@ -166,6 +166,30 @@ void main() {
         await tester.tap(find.text(label));
         await tester.pumpAndSettle();
         expect(manager.themeMode, mode);
+        final themeCard = find.ancestor(
+          of: find.text('Theme'),
+          matching: find.byType(Card),
+        );
+        final informationCard = find.ancestor(
+          of: find.text('Profile Information'),
+          matching: find.byType(Card),
+        );
+        final themeRect = tester.getRect(themeCard);
+        final informationRect = tester.getRect(informationCard);
+        expect(themeRect.width, informationRect.width);
+        expect(themeRect.left, informationRect.left);
+        final selectorRect = tester.getRect(
+          find.byType(SegmentedButton<ThemeMode>),
+        );
+        expect(selectorRect.center.dx, closeTo(themeRect.center.dx, 0.01));
+        if (size.width < size.height) {
+          final logoutCard = find.ancestor(
+            of: find.text('Logout'),
+            matching: find.byType(Card),
+          );
+          expect(tester.getRect(logoutCard).width, themeRect.width);
+          expect(tester.getRect(logoutCard).left, themeRect.left);
+        }
         expect(tester.takeException(), isNull);
       }
       await tester.pumpWidget(const SizedBox.shrink());

@@ -66,6 +66,8 @@ Future<void> main() async {
     },
   );
   await authManager.initialize();
+  final hasStartupSession =
+      Supabase.instance.client.auth.currentSession != null;
   loanManager.setUser(authManager.currentUser?.id);
   await Future.wait([
     loanManager.initialize(),
@@ -83,13 +85,15 @@ Future<void> main() async {
         ChangeNotifierProvider.value(value: triggerManager),
         ChangeNotifierProvider.value(value: aiManager),
       ],
-      child: const MainApp(),
+      child: MainApp(hasStartupSession: hasStartupSession),
     ),
   );
 }
 
 class MainApp extends StatelessWidget {
-  const MainApp({super.key});
+  final bool hasStartupSession;
+
+  const MainApp({super.key, this.hasStartupSession = false});
 
   @override
   Widget build(BuildContext context) {
@@ -99,20 +103,39 @@ class MainApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: context.watch<ThemeManager>().themeMode,
-      home: const _AppEntry(),
+      home: _AppEntry(hasStartupSession: hasStartupSession),
     );
   }
 }
 
 class _AppEntry extends StatefulWidget {
-  const _AppEntry();
+  final bool hasStartupSession;
+
+  const _AppEntry({required this.hasStartupSession});
 
   @override
   State<_AppEntry> createState() => _AppEntryState();
 }
 
 class _AppEntryState extends State<_AppEntry> {
-  bool _hasCompletedOnboarding = false;
+  late bool _hasCompletedOnboarding;
+  bool _wasLoggedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _hasCompletedOnboarding = widget.hasStartupSession;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final isLoggedIn = context.watch<AuthManager>().isLoggedIn;
+    if (_wasLoggedIn && !isLoggedIn) {
+      _hasCompletedOnboarding = false;
+    }
+    _wasLoggedIn = isLoggedIn;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -121,15 +144,15 @@ class _AppEntryState extends State<_AppEntry> {
         if (auth.isPasswordRecovery) {
           return const ResetPasswordScreen();
         }
+        if (auth.isLoggedIn) {
+          return const _HomeShell();
+        }
         if (!_hasCompletedOnboarding) {
           return OnboardingScreen(
             onFinished: () => setState(() => _hasCompletedOnboarding = true),
           );
         }
-        if (!auth.isLoggedIn) {
-          return const LoginScreen();
-        }
-        return const _HomeShell();
+        return const LoginScreen();
       },
     );
   }

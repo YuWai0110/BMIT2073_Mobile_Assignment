@@ -1,3 +1,11 @@
+String? validateSchemeName(String? value) {
+  final text = value?.trim() ?? '';
+  if (text.isEmpty) return 'Scheme name is required.';
+  if (text.length < 2) return 'Minimum 2 characters required.';
+  if (text.length > 50) return 'Maximum 50 characters allowed.';
+  return null;
+}
+
 String? validateEquipmentPrice(String? value) {
   final text = value?.trim() ?? '';
   if (text.isEmpty) return 'Equipment price is required.';

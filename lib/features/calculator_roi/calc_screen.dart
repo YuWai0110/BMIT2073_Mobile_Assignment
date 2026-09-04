@@ -581,7 +581,7 @@ class _SaveSchemeDialogState extends State<_SaveSchemeDialog> {
 
   void _submit() {
     final title = _titleController.text.trim();
-    if (title.isEmpty) return;
+    if (validateSchemeName(title) != null) return;
     Navigator.of(context).pop(title);
   }
 
@@ -592,8 +592,11 @@ class _SaveSchemeDialogState extends State<_SaveSchemeDialog> {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TextField(
+          TextFormField(
             controller: _titleController,
+            validator: validateSchemeName,
+            autovalidateMode: AutovalidateMode.always,
+            onChanged: (_) => setState(() {}),
             focusNode: _titleFocusNode,
             autofocus: true,
             decoration: appInputDecoration(
@@ -602,7 +605,7 @@ class _SaveSchemeDialogState extends State<_SaveSchemeDialog> {
               prefixIcon: Icons.bookmark_border,
             ),
             textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _submit(),
+            onFieldSubmitted: (_) => _submit(),
           ),
         ],
       ),
@@ -612,7 +615,9 @@ class _SaveSchemeDialogState extends State<_SaveSchemeDialog> {
           child: const Text('Cancel'),
         ),
         ElevatedButton(
-          onPressed: _submit,
+          onPressed: validateSchemeName(_titleController.text) == null
+              ? _submit
+              : null,
           child: Text(widget.isEditing ? 'Update' : 'Save'),
         ),
       ],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
+import '../../core/responsive_input_dialog.dart';
 import 'auth_manager.dart';
 import 'auth_validators.dart';
 
@@ -51,6 +52,7 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   Future<void> _handleSignUp() async {
+    if (_isLoading) return;
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
@@ -77,18 +79,30 @@ class _SignupScreenState extends State<SignupScreen> {
         ),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            '✅ Account created. Check your email if confirmation is enabled.',
-          ),
-          backgroundColor: AppColors.success,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+      FocusScope.of(context).unfocus();
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        useSafeArea: false,
+        builder: (dialogContext) => PopScope(
+          canPop: false,
+          child: ResponsiveInputDialog(
+            title: const Text('Account Created'),
+            content: const Text(
+              'Your account has been created successfully.\n\n'
+              'A verification email has been sent to your email address.\n\n'
+              'Please verify your email before logging in.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Back to Login'),
+              ),
+            ],
           ),
         ),
       );
+      if (!mounted) return;
       Navigator.pop(context);
     }
   }

@@ -145,13 +145,18 @@ class AuthManager extends ChangeNotifier {
         companyName: companyName.trim(),
         phone: phone.trim(),
       );
-      if (response.session != null && response.user != null) {
-        await _loadUser(response.user!);
-        await _notifyAuthenticationChanged();
+      if (response.session != null) {
+        await repository.clearRegistrationSession();
+      }
+      if (response.user == null) {
+        return 'Unable to create your account. Please try again.';
+      }
+      if (response.user!.identities?.isEmpty == true) {
+        return 'An account with this email already exists.';
       }
       return null;
     } catch (error) {
-      return _messageFor(error);
+      return friendlySignUpError(error);
     } finally {
       _isAuthenticating = false;
     }
