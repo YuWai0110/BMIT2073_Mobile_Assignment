@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../../services/database/database_service.dart';
+import 'calc_validators.dart';
 
 class CalcScheme {
   final String id;
@@ -109,6 +110,12 @@ class CalcManager extends ChangeNotifier {
   double get totalInterest => _totalInterest;
   double get formEquipmentPrice => double.tryParse(_equipmentPriceText) ?? 0;
   int get formQuantity => int.tryParse(_quantityText) ?? 0;
+  bool get hasValidInputs =>
+      validateEquipmentPrice(_equipmentPriceText) == null &&
+      validateEquipmentQuantity(_quantityText) == null &&
+      _formInterestRate.isFinite &&
+      _formInterestRate >= 0 &&
+      _formInterestRate <= 20;
 
   void updateEquipmentPrice(String value) {
     if (_equipmentPriceText == value) return;
@@ -141,7 +148,7 @@ class CalcManager extends ChangeNotifier {
   void loadSchemeForEditing(CalcScheme scheme) {
     _editingSchemeId = scheme.id;
     _editingSchemeTitle = scheme.title;
-    _equipmentPriceText = scheme.equipmentPrice.toStringAsFixed(0);
+    _equipmentPriceText = scheme.equipmentPrice.toStringAsFixed(2);
     _quantityText = scheme.unitCount.toString();
     _formInterestRate = scheme.interestRate;
     _formLoanTermMonths = scheme.loanTermMonths;
@@ -168,6 +175,12 @@ class CalcManager extends ChangeNotifier {
   }
 
   void _recalculateForm() {
+    if (!hasValidInputs) {
+      _monthlyPayment = 0;
+      _totalPayment = 0;
+      _totalInterest = 0;
+      return;
+    }
     final principal = formEquipmentPrice * formQuantity;
     final result = calculateEMI(
       principal: principal,

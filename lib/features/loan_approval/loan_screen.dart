@@ -2,10 +2,57 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
+import '../../core/formatters/rm_currency.dart';
 import '../../core/widgets/loading_skeletons.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/mock_data.dart';
 import 'loan_manager.dart';
+import 'loan_validators.dart';
+
+String _submittedDate(BuildContext context, LoanRequest request) {
+  final date = request.submittedAt.toLocal();
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return 'Submitted • ${date.day.toString().padLeft(2, '0')} ${months[date.month - 1]} ${date.year}';
+}
+
+Future<bool> _confirmLoanAction(
+  BuildContext context, {
+  required String title,
+  required String message,
+  required String action,
+}) async {
+  return await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(action),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+}
 
 class LoanScreen extends StatelessWidget {
   final bool isBanker;
@@ -29,6 +76,7 @@ class _SmeViewState extends State<_SmeView> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _companyCtrl;
   late final TextEditingController _amountCtrl;
+  bool _confirming = false;
 
   @override
   void initState() {
@@ -49,16 +97,22 @@ class _SmeViewState extends State<_SmeView> {
     final manager = context.read<LoanManager>();
     manager.showFormValidation();
     if (!_formKey.currentState!.validate()) return;
-
-    final req = LoanRequest(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      companyName: manager.formCompanyName.trim(),
-      equipmentName: manager.formEquipmentType,
-      loanAmount: double.parse(manager.formLoanAmount.trim()),
-      interestRate: manager.formInterestRate,
-      repaymentYears: manager.formRepaymentYears,
-    );
-    final error = await manager.addLoanRequest(req);
+    if (_confirming || manager.isSaving) return;
+    final editing = manager.isEditing;
+    final editingId = manager.editingId;
+    if (editing) {
+      _confirming = true;
+      final confirmed = await _confirmLoanAction(
+        context,
+        title: 'Confirm Update',
+        message: 'Are you sure you want to update this loan application?',
+        action: 'Update',
+      );
+      if (!mounted) return;
+      _confirming = false;
+      if (!confirmed || manager.editingId != editingId) return;
+    }
+    final error = await manager.saveForm();
     if (!mounted) return;
 
     if (error != null) {
@@ -75,9 +129,34 @@ class _SmeViewState extends State<_SmeView> {
       return;
     }
 
-    manager.clearLoanForm();
+    AppSnackBar.success(
+      context,
+      editing
+          ? 'Application updated successfully.'
+          : 'Loan application submitted',
+    );
+  }
 
-    AppSnackBar.success(context, 'Loan application submitted');
+  Future<void> _deleteApplication(String id) async {
+    if (_confirming) return;
+    final manager = context.read<LoanManager>();
+    _confirming = true;
+    final confirmed = await _confirmLoanAction(
+      context,
+      title: 'Delete Application?',
+      message: 'This action cannot be undone.',
+      action: 'Delete',
+    );
+    if (!mounted) return;
+    _confirming = false;
+    if (!confirmed) return;
+    final error = await manager.deletePending(id);
+    if (!mounted) return;
+    if (error != null) {
+      AppSnackBar.error(context, error);
+    } else {
+      AppSnackBar.success(context, 'Application deleted successfully.');
+    }
   }
 
   Widget _buildApplicationForm(BuildContext context) {
@@ -91,105 +170,120 @@ class _SmeViewState extends State<_SmeView> {
           autovalidateMode: manager.formValidationVisible
               ? AutovalidateMode.always
               : AutovalidateMode.disabled,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.description_outlined,
-                    color: AppColors.accentBlue,
-                    size: 22,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'New Loan Application',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textColor(context),
+          child: AbsorbPointer(
+            absorbing: manager.isSaving,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.description_outlined,
+                      color: AppColors.accentBlue,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        manager.isEditing
+                            ? 'Edit Loan Application'
+                            : 'New Loan Application',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.textColor(context),
+                            ),
                       ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                TextFormField(
+                  controller: _companyCtrl,
+                  decoration: appInputDecoration(
+                    label: 'Company Name',
+                    hint: 'e.g. TechVision Sdn Bhd',
+                    prefixIcon: Icons.business,
+                  ).copyWith(errorMaxLines: 3),
+                  validator: validateLoanCompany,
+                  onChanged: manager.updateFormCompanyName,
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  key: ValueKey(
+                    '${manager.editingId}-${manager.formEquipmentType}',
                   ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              TextFormField(
-                controller: _companyCtrl,
-                decoration: appInputDecoration(
-                  label: 'Company Name',
-                  hint: 'e.g. TechVision Sdn Bhd',
-                  prefixIcon: Icons.business,
+                  initialValue: manager.formEquipmentType,
+                  isExpanded: true,
+                  decoration: appInputDecoration(
+                    label: 'Equipment Type',
+                    prefixIcon: Icons.precision_manufacturing,
+                  ),
+                  items: MockData.equipmentTypes
+                      .map(
+                        (e) => DropdownMenuItem(
+                          value: e,
+                          child: Text(e, overflow: TextOverflow.ellipsis),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) manager.updateFormEquipmentType(v);
+                  },
                 ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Required' : null,
-                onChanged: manager.updateFormCompanyName,
-              ),
-              const SizedBox(height: 14),
-              DropdownButtonFormField<String>(
-                initialValue: manager.formEquipmentType,
-                isExpanded: true,
-                decoration: appInputDecoration(
-                  label: 'Equipment Type',
-                  prefixIcon: Icons.precision_manufacturing,
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _amountCtrl,
+                  decoration: appInputDecoration(
+                    label: 'Loan Amount (RM)',
+                    hint: 'e.g. 150000.00',
+                    prefixIcon: Icons.attach_money,
+                  ).copyWith(errorMaxLines: 3),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  validator: validateLoanAmount,
+                  onChanged: manager.updateFormLoanAmount,
                 ),
-                items: MockData.equipmentTypes
-                    .map(
-                      (e) => DropdownMenuItem(
-                        value: e,
-                        child: Text(e, overflow: TextOverflow.ellipsis),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (v) {
-                  if (v != null) manager.updateFormEquipmentType(v);
-                },
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: _amountCtrl,
-                decoration: appInputDecoration(
-                  label: 'Loan Amount (RM)',
-                  hint: 'e.g. 150000',
-                  prefixIcon: Icons.attach_money,
+                const SizedBox(height: 14),
+                Text(
+                  'Interest Rate: ${manager.formInterestRate.toStringAsFixed(2)}%',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.textColor(context),
+                  ),
                 ),
-                keyboardType: TextInputType.number,
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) return 'Required';
-                  if (double.tryParse(v.trim()) == null) {
-                    return 'Enter a valid number';
-                  }
-                  return null;
-                },
-                onChanged: manager.updateFormLoanAmount,
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'Interest Rate: ${manager.formInterestRate.toStringAsFixed(2)}%',
-                style: TextStyle(
-                  fontWeight: FontWeight.w500,
-                  color: AppTheme.textColor(context),
+                Slider(
+                  value: manager.formInterestRate.clamp(1.0, 12.0),
+                  min: 1.0,
+                  max: 12.0,
+                  divisions: 44,
+                  activeColor: AppColors.accentBlue,
+                  label: '${manager.formInterestRate.toStringAsFixed(2)}%',
+                  onChanged: manager.updateFormInterestRate,
                 ),
-              ),
-              Slider(
-                value: manager.formInterestRate,
-                min: 1.0,
-                max: 12.0,
-                divisions: 44,
-                activeColor: AppColors.accentBlue,
-                label: '${manager.formInterestRate.toStringAsFixed(2)}%',
-                onChanged: manager.updateFormInterestRate,
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _submitApplication,
-                  icon: const Icon(Icons.send),
-                  label: const Text('Submit Application'),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: manager.isSaving || !manager.isFormValid
+                        ? null
+                        : _submitApplication,
+                    icon: const Icon(Icons.send),
+                    label: Text(
+                      manager.isEditing
+                          ? 'Update Application'
+                          : 'Submit Application',
+                    ),
+                  ),
                 ),
-              ),
-            ],
+                if (manager.isEditing)
+                  TextButton(
+                    onPressed: manager.isSaving ? null : manager.clearLoanForm,
+                    child: const Text('Cancel'),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -212,6 +306,28 @@ class _SmeViewState extends State<_SmeView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SegmentedButton<LoanFilter>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: LoanFilter.all, label: Text('All')),
+              ButtonSegment(value: LoanFilter.pending, label: Text('Pending')),
+              ButtonSegment(
+                value: LoanFilter.approved,
+                label: Text('Approved'),
+              ),
+              ButtonSegment(
+                value: LoanFilter.rejected,
+                label: Text('Rejected'),
+              ),
+            ],
+            selected: {context.watch<LoanManager>().filter},
+            onSelectionChanged: (values) =>
+                context.read<LoanManager>().setFilter(values.single),
+          ),
+        ),
+        const SizedBox(height: 12),
         Row(
           children: [
             Icon(Icons.history, color: AppTheme.mutedColor(context), size: 20),
@@ -252,7 +368,25 @@ class _SmeViewState extends State<_SmeView> {
             ),
           )
         else
-          ...requests.reversed.map((req) => _SmeRequestCard(request: req)),
+          ...requests.reversed.map(
+            (req) => _SmeRequestCard(
+              request: req,
+              onDelete: () => _deleteApplication(req.id),
+              onEdit: () async {
+                final error = context.read<LoanManager>().startEditing(req.id);
+                if (error != null) {
+                  AppSnackBar.error(context, error);
+                  return;
+                }
+                await WidgetsBinding.instance.endOfFrame;
+                if (!mounted) return;
+                final formContext = _formKey.currentContext;
+                if (formContext != null && formContext.mounted) {
+                  Scrollable.ensureVisible(formContext);
+                }
+              },
+            ),
+          ),
       ],
     );
   }
@@ -260,7 +394,7 @@ class _SmeViewState extends State<_SmeView> {
   @override
   Widget build(BuildContext context) {
     final manager = context.watch<LoanManager>();
-    final requests = manager.allRequests;
+    final requests = manager.filteredRequests;
     _syncController(_companyCtrl, manager.formCompanyName);
     _syncController(_amountCtrl, manager.formLoanAmount);
 
@@ -309,7 +443,13 @@ class _SmeViewState extends State<_SmeView> {
 
 class _SmeRequestCard extends StatelessWidget {
   final LoanRequest request;
-  const _SmeRequestCard({required this.request});
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  const _SmeRequestCard({
+    required this.request,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   Color _statusColor() {
     switch (request.status) {
@@ -338,9 +478,39 @@ class _SmeRequestCard extends StatelessWidget {
           request.equipmentName,
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
-        subtitle: Text(
-          '${request.companyName} · RM ${request.loanAmount.toStringAsFixed(0)}',
-          style: TextStyle(color: AppTheme.mutedColor(context)),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${request.companyName} · ${formatRm(request.loanAmount)}',
+              style: TextStyle(color: AppTheme.mutedColor(context)),
+            ),
+            Text(
+              _submittedDate(context, request),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            if (request.status == LoanStatus.pending)
+              Wrap(
+                children: [
+                  IconButton(
+                    tooltip: 'Edit application',
+                    key: ValueKey('edit-${request.id}'),
+                    onPressed: context.watch<LoanManager>().isSaving
+                        ? null
+                        : onEdit,
+                    icon: const Icon(Icons.edit_outlined),
+                  ),
+                  IconButton(
+                    tooltip: 'Delete application',
+                    key: ValueKey('delete-${request.id}'),
+                    onPressed: context.watch<LoanManager>().isSaving
+                        ? null
+                        : onDelete,
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+                ],
+              ),
+          ],
         ),
         trailing: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -424,7 +594,9 @@ class _BankerView extends StatelessWidget {
         final req = requests[index];
         return Dismissible(
           key: ValueKey(req.id),
-          direction: DismissDirection.endToStart,
+          direction: req.status == LoanStatus.pending
+              ? DismissDirection.endToStart
+              : DismissDirection.none,
           background: Container(
             alignment: Alignment.centerRight,
             padding: const EdgeInsets.only(right: 24),
@@ -440,13 +612,12 @@ class _BankerView extends StatelessWidget {
             ),
           ),
           confirmDismiss: (direction) async {
-            return await showDialog<bool>(
+            if (manager.isSaving) return false;
+            final confirmed = await showDialog<bool>(
               context: context,
               builder: (ctx) => AlertDialog(
                 title: const Text('Delete Application?'),
-                content: Text(
-                  'Remove ${req.companyName}\'s application permanently?',
-                ),
+                content: const Text('This action cannot be undone.'),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(ctx, false),
@@ -462,17 +633,19 @@ class _BankerView extends StatelessWidget {
                 ],
               ),
             );
-          },
-          onDismissed: (_) async {
-            final error = await manager.deleteRequest(req.id);
-            if (context.mounted && error != null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('❌ $error'),
-                  backgroundColor: AppColors.error,
-                ),
-              );
+            if (!context.mounted || confirmed != true) return false;
+            final error = await manager.deletePending(req.id);
+            if (context.mounted) {
+              if (error != null) {
+                AppSnackBar.error(context, error);
+              } else {
+                AppSnackBar.success(
+                  context,
+                  'Application deleted successfully.',
+                );
+              }
             }
+            return false;
           },
           child: _BankerRequestCard(request: req),
         );
@@ -560,14 +733,17 @@ class _BankerRequestCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-
+            Text(
+              _submittedDate(context, request),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
             Wrap(
               spacing: 12,
               runSpacing: 8,
               children: [
                 _DetailChip(
                   icon: Icons.attach_money,
-                  label: 'RM ${request.loanAmount.toStringAsFixed(0)}',
+                  label: formatRm(request.loanAmount),
                 ),
                 _DetailChip(
                   icon: Icons.percent,

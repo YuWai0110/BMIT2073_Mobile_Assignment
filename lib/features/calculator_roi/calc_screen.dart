@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
@@ -11,6 +10,7 @@ import '../ai/ai_manager.dart';
 import '../ai/models/ai_recommendation.dart';
 import 'ai_recommendation_card.dart';
 import 'calc_manager.dart';
+import 'calc_validators.dart';
 
 class CalcScreen extends StatefulWidget {
   const CalcScreen({super.key});
@@ -88,30 +88,9 @@ class _CalcScreenState extends State<CalcScreen> {
     );
   }
 
-  bool _hasValidCalculatorInput(AiAdvisorInput input) {
-    return input.equipmentPrice > 0 &&
-        input.quantity > 0 &&
-        input.interestRate >= 0 &&
-        input.interestRate <= 20;
-  }
-
   Future<void> _generateAiAdvice() async {
+    if (!context.read<CalcManager>().hasValidInputs) return;
     final input = _buildAiInput();
-    if (!_hasValidCalculatorInput(input)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Enter a price above RM 0, a quantity above 0, and an interest rate from 0% to 20%.',
-          ),
-          backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
-      return;
-    }
 
     final manager = context.read<AiManager?>();
     if (manager == null) {
@@ -146,24 +125,7 @@ class _CalcScreenState extends State<CalcScreen> {
     final price = manager.formEquipmentPrice;
     final units = manager.formQuantity;
 
-    if (price <= 0 ||
-        units <= 0 ||
-        manager.formInterestRate < 0 ||
-        manager.formInterestRate > 20) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Enter a price above RM 0, a quantity above 0, and an interest rate from 0% to 20%.',
-          ),
-          backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
-      return;
-    }
+    if (!manager.hasValidInputs) return;
 
     final editingId = manager.editingSchemeId;
     final isEditing = editingId != null;
@@ -258,21 +220,15 @@ class _CalcScreenState extends State<CalcScreen> {
               controller: _priceCtrl,
               decoration: appInputDecoration(
                 label: 'Equipment Unit Price (RM)',
-                hint: 'e.g. 50000',
+                hint: 'e.g. 50000.00',
                 prefixIcon: Icons.precision_manufacturing,
-              ),
+              ).copyWith(errorMaxLines: 3),
+              validator: validateEquipmentPrice,
+              autovalidateMode: AutovalidateMode.always,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
                 signed: false,
               ),
-              inputFormatters: [
-                TextInputFormatter.withFunction(
-                  (oldValue, newValue) =>
-                      RegExp(r'^\d*\.?\d{0,2}$').hasMatch(newValue.text)
-                      ? newValue
-                      : oldValue,
-                ),
-              ],
               onChanged: (value) => _onCalculatorInputChanged(
                 (manager) => manager.updateEquipmentPrice(value),
               ),
@@ -284,18 +240,12 @@ class _CalcScreenState extends State<CalcScreen> {
                 label: 'Quantity (Units)',
                 hint: 'e.g. 3',
                 prefixIcon: Icons.inventory_2_outlined,
-              ),
+              ).copyWith(errorMaxLines: 3),
+              validator: validateEquipmentQuantity,
+              autovalidateMode: AutovalidateMode.always,
               keyboardType: const TextInputType.numberWithOptions(
                 signed: false,
               ),
-              inputFormatters: [
-                TextInputFormatter.withFunction(
-                  (oldValue, newValue) =>
-                      RegExp(r'^\d*$').hasMatch(newValue.text)
-                      ? newValue
-                      : oldValue,
-                ),
-              ],
               onChanged: (value) => _onCalculatorInputChanged(
                 (manager) => manager.updateQuantity(value),
               ),
@@ -429,7 +379,7 @@ class _CalcScreenState extends State<CalcScreen> {
         _buildAiAdvisor(context),
         const SizedBox(height: 12),
         ElevatedButton.icon(
-          onPressed: _saveScheme,
+          onPressed: manager.hasValidInputs ? _saveScheme : null,
           icon: Icon(
             manager.editingSchemeId != null ? Icons.save : Icons.bookmark_add,
           ),
@@ -445,7 +395,8 @@ class _CalcScreenState extends State<CalcScreen> {
 
   Widget _buildAiAdvisor(BuildContext context) {
     final manager = context.watch<AiManager?>();
-    final recommendation = manager?.recommendation;
+    final valid = context.watch<CalcManager>().hasValidInputs;
+    final recommendation = valid ? manager?.recommendation : null;
 
     return Card(
       margin: EdgeInsets.zero,
@@ -485,12 +436,14 @@ class _CalcScreenState extends State<CalcScreen> {
             const SizedBox(height: 16),
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 250),
-              child: (manager?.isLoading ?? false)
+              child: valid && (manager?.isLoading ?? false)
                   ? const AiAdvisorSkeleton()
                   : recommendation != null
                   ? AiRecommendationCard(recommendation: recommendation)
                   : ElevatedButton.icon(
-                      onPressed: manager == null ? null : _generateAiAdvice,
+                      onPressed: manager == null || !valid
+                          ? null
+                          : _generateAiAdvice,
                       icon: const Icon(Icons.auto_awesome),
                       label: const Text('Generate AI Advice'),
                     ),

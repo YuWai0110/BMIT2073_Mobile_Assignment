@@ -145,7 +145,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextFormField).at(0), '50000');
+    await tester.enterText(find.byType(TextFormField).at(0), '50000.00');
     await tester.enterText(find.byType(TextFormField).at(1), '1');
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Generate AI Advice'));
