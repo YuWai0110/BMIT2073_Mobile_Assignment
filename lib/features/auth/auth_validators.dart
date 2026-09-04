@@ -1,6 +1,19 @@
+import 'package:flutter/widgets.dart';
+
 String? validateFullName(String? value) {
-  if (value == null || value.trim().length < 3) {
+  final name = value?.trim() ?? '';
+  if (name.isEmpty) {
     return 'Please enter your full name.';
+  }
+  if (name.characters.length < 2 || name.characters.length > 30) {
+    return 'Full name must be between 2 and 30 characters.';
+  }
+  return null;
+}
+
+String? validateRegistrationCompany(String? value) {
+  if ((value?.trim().characters.length ?? 0) > 50) {
+    return 'Company name cannot exceed 50 characters.';
   }
   return null;
 }
@@ -22,7 +35,7 @@ String? validateRegistrationPassword(String? value) {
       RegExp(r'[a-z]').hasMatch(password) &&
       RegExp(r'\d').hasMatch(password);
   if (!isValid) {
-    return 'Password must be at least 8 characters and include uppercase, lowercase and a number.';
+    return 'Password must contain at least 8 characters, one uppercase letter, one lowercase letter, and one number.';
   }
   return null;
 }
@@ -36,7 +49,12 @@ String? validatePasswordConfirmation(String? value, String password) {
 
 String? validateMalaysianPhone(String? value) {
   final phone = value?.trim() ?? '';
-  if (phone.isNotEmpty && !RegExp(r'^\d{10,11}$').hasMatch(phone)) {
+  if (phone.isEmpty) return null;
+  final compact = phone.replaceAll(RegExp(r'[-\s]'), '');
+  final local = compact.startsWith('+60')
+      ? '0${compact.substring(3)}'
+      : compact;
+  if (!RegExp(r'^0[1-9][0-9]{8,9}$').hasMatch(local)) {
     return 'Please enter a valid Malaysian phone number.';
   }
   return null;

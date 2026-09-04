@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
+import '../../core/widgets/loading_skeletons.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../core/mock_data.dart';
 import '../../core/responsive_input_dialog.dart';
 import '../ai/ai_manager.dart';
@@ -191,13 +193,9 @@ class _CalcScreenState extends State<CalcScreen> {
       manager.saveScheme(scheme);
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(isEditing ? '✅ Scheme updated!' : '✅ Scheme saved!'),
-        backgroundColor: AppColors.success,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
+    AppSnackBar.success(
+      context,
+      isEditing ? 'Scheme updated successfully' : 'Scheme saved successfully',
     );
   }
 
@@ -485,21 +483,18 @@ class _CalcScreenState extends State<CalcScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            if (manager?.isLoading ?? false)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(12),
-                  child: CircularProgressIndicator(),
-                ),
-              )
-            else if (recommendation != null)
-              AiRecommendationCard(recommendation: recommendation)
-            else
-              ElevatedButton.icon(
-                onPressed: manager == null ? null : _generateAiAdvice,
-                icon: const Icon(Icons.auto_awesome),
-                label: const Text('Generate AI Advice'),
-              ),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              child: (manager?.isLoading ?? false)
+                  ? const AiAdvisorSkeleton()
+                  : recommendation != null
+                  ? AiRecommendationCard(recommendation: recommendation)
+                  : ElevatedButton.icon(
+                      onPressed: manager == null ? null : _generateAiAdvice,
+                      icon: const Icon(Icons.auto_awesome),
+                      label: const Text('Generate AI Advice'),
+                    ),
+            ),
           ],
         ),
       ),
@@ -558,8 +553,10 @@ class _CalcScreenState extends State<CalcScreen> {
             (scheme) => _SchemeCard(
               scheme: scheme,
               onLoad: () => _loadScheme(scheme),
-              onDelete: () =>
-                  context.read<CalcManager>().deleteScheme(scheme.id),
+              onDelete: () {
+                context.read<CalcManager>().deleteScheme(scheme.id);
+                AppSnackBar.success(context, 'Scheme deleted successfully');
+              },
             ),
           ),
       ],

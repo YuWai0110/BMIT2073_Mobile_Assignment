@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
+import '../../core/widgets/loading_skeletons.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../core/mock_data.dart';
 import 'loan_manager.dart';
 
@@ -75,14 +77,7 @@ class _SmeViewState extends State<_SmeView> {
 
     manager.clearLoanForm();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('✅ Loan application submitted!'),
-        backgroundColor: AppColors.success,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+    AppSnackBar.success(context, 'Loan application submitted');
   }
 
   Widget _buildApplicationForm(BuildContext context) {
@@ -202,6 +197,18 @@ class _SmeViewState extends State<_SmeView> {
   }
 
   Widget _buildApplications(BuildContext context, List<LoanRequest> requests) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      child: context.watch<LoanManager>().isLoading
+          ? const LoanApplicationsSkeleton()
+          : _buildApplicationsContent(context, requests),
+    );
+  }
+
+  Widget _buildApplicationsContent(
+    BuildContext context,
+    List<LoanRequest> requests,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -361,6 +368,19 @@ class _BankerView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      child: context.watch<LoanManager>().isLoading
+          ? const SingleChildScrollView(
+              physics: AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.all(16),
+              child: LoanApplicationsSkeleton(),
+            )
+          : _buildContent(context),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     final manager = context.watch<LoanManager>();
     final requests = manager.allRequests;
 
@@ -569,6 +589,10 @@ class _BankerRequestCard extends StatelessWidget {
                           request.id,
                           LoanStatus.notApproved,
                         );
+                        if (!context.mounted) return;
+                        if (error == null) {
+                          AppSnackBar.success(context, 'Loan rejected');
+                        }
                         if (context.mounted && error != null) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
@@ -594,6 +618,10 @@ class _BankerRequestCard extends StatelessWidget {
                           request.id,
                           LoanStatus.approved,
                         );
+                        if (!context.mounted) return;
+                        if (error == null) {
+                          AppSnackBar.success(context, 'Loan approved');
+                        }
                         if (context.mounted && error != null) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
