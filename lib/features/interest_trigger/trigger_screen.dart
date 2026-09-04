@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../core/mock_data.dart';
 import '../../core/responsive_input_dialog.dart';
 import 'trigger_manager.dart';
@@ -120,6 +121,10 @@ class _TriggerScreenState extends State<TriggerScreen> {
     }
 
     _updateRates(_selectedYear);
+    AppSnackBar.success(
+      context,
+      existing == null ? 'Trigger rule added' : 'Trigger rule updated',
+    );
   }
 
   @override
@@ -371,7 +376,10 @@ class _TriggerScreenState extends State<TriggerScreen> {
                           size: 28,
                         ),
                       ),
-                      onDismissed: (_) => manager.removeRule(rule.id),
+                      onDismissed: (_) {
+                        manager.removeRule(rule.id);
+                        AppSnackBar.success(context, 'Trigger rule deleted');
+                      },
                       child: Card(
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(

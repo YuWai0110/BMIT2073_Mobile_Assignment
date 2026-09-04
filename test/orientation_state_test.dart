@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile_assginment/core/widgets/loading_skeletons.dart';
 import 'package:mobile_assginment/features/ai/ai_manager.dart';
 import 'package:mobile_assginment/features/ai/models/ai_recommendation.dart';
 import 'package:mobile_assginment/features/calculator_roi/calc_manager.dart';
@@ -75,7 +76,7 @@ void main() {
 
       await pump(const Size(844, 390));
       expect(ai.isLoading, isTrue);
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(AiAdvisorSkeleton), findsOneWidget);
       expect(calc.formInterestRate, 6.25);
       expect(calc.formLoanTermMonths, 84);
       expect(calc.editingSchemeId, 'editing');

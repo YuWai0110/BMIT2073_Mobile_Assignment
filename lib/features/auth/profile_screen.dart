@@ -2,18 +2,34 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
+import '../../core/widgets/loading_skeletons.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../core/theme/theme_manager.dart';
 import 'auth_manager.dart';
+import 'profile_manager.dart';
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  Widget build(BuildContext context) => ChangeNotifierProvider.value(
+    value: context.read<AuthManager>().profileManager,
+    child: const _ProfileEditor(),
+  );
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
-  bool _isEditing = false;
+class _ProfileEditor extends StatefulWidget {
+  const _ProfileEditor();
+
+  @override
+  State<_ProfileEditor> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<_ProfileEditor> {
+  late ProfileManager _manager;
+  bool _syncing = false;
+  bool _confirming = false;
+  bool get _isEditing => _manager.isEditing;
 
   late TextEditingController _nameCtrl;
   late TextEditingController _companyCtrl;
@@ -22,14 +38,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    final user = context.read<AuthManager>().currentUser;
-    _nameCtrl = TextEditingController(text: user?.fullName ?? '');
-    _companyCtrl = TextEditingController(text: user?.companyName ?? '');
-    _phoneCtrl = TextEditingController(text: user?.phone ?? '');
+    _manager = context.read<ProfileManager>();
+    _nameCtrl = TextEditingController.fromValue(_manager.fullName);
+    _companyCtrl = TextEditingController.fromValue(_manager.company);
+    _phoneCtrl = TextEditingController.fromValue(_manager.phone);
+    _nameCtrl.addListener(_writeDraft);
+    _companyCtrl.addListener(_writeDraft);
+    _phoneCtrl.addListener(_writeDraft);
+    _manager.addListener(_readDraft);
+  }
+
+  void _writeDraft() {
+    if (_syncing || !_isEditing) return;
+    _manager.updateDraft(
+      name: _nameCtrl.value,
+      companyValue: _companyCtrl.value,
+      phoneValue: _phoneCtrl.value,
+    );
+  }
+
+  void _readDraft() {
+    if (!mounted) return;
+    _syncing = true;
+    if (_nameCtrl.value != _manager.fullName) {
+      _nameCtrl.value = _manager.fullName;
+    }
+    if (_companyCtrl.value != _manager.company) {
+      _companyCtrl.value = _manager.company;
+    }
+    if (_phoneCtrl.value != _manager.phone) _phoneCtrl.value = _manager.phone;
+    _syncing = false;
   }
 
   @override
   void dispose() {
+    _manager.removeListener(_readDraft);
     _nameCtrl.dispose();
     _companyCtrl.dispose();
     _phoneCtrl.dispose();
@@ -37,28 +80,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _toggleEdit() async {
+    if (_confirming || _manager.isSaving) return;
     if (_isEditing) {
-      final auth = context.read<AuthManager>();
-      final error = await auth.updateProfile(
-        fullName: _nameCtrl.text,
-        companyName: _companyCtrl.text,
-        phone: _phoneCtrl.text,
-      );
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error == null ? '✅ Profile updated!' : '❌ $error'),
-          backgroundColor: error == null ? AppColors.success : AppColors.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
+      if (!_manager.isValid) return;
+      final owner = context.read<AuthManager>().currentUser?.id;
+      _confirming = true;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Confirm Profile Update'),
+          content: const Text('Are you sure you want to save these changes?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Save'),
+            ),
+          ],
         ),
       );
-      if (error != null) return;
+      if (!mounted) return;
+      _confirming = false;
+      if (confirmed != true ||
+          context.read<AuthManager>().currentUser?.id != owner) {
+        return;
+      }
+      final error = await _manager.save();
+      if (!mounted) return;
+      if (context.read<AuthManager>().currentUser?.id != owner) return;
+
+      if (error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ $error'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+        return;
+      }
+      AppSnackBar.success(context, 'Profile updated successfully');
+    } else {
+      _manager.startEditing();
     }
-    setState(() => _isEditing = !_isEditing);
   }
 
   void _handleLogout() {
@@ -111,6 +181,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 12),
           Text(
             user.fullName,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.bold,
@@ -120,6 +192,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 4),
           Text(
             user.email,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: TextStyle(color: AppTheme.mutedColor(context), fontSize: 14),
           ),
@@ -184,7 +258,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 TextButton.icon(
-                  onPressed: _toggleEdit,
+                  onPressed:
+                      _manager.isSaving || (_isEditing && !_manager.isValid)
+                      ? null
+                      : _toggleEdit,
                   icon: Icon(_isEditing ? Icons.save : Icons.edit, size: 18),
                   label: Text(_isEditing ? 'Save' : 'Edit'),
                   style: TextButton.styleFrom(
@@ -200,6 +277,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               label: 'Full Name',
               icon: Icons.badge_outlined,
               controller: _nameCtrl,
+              validator: ProfileManager.validateName,
+              readOnly: _manager.isSaving,
               isEditing: _isEditing && !auth.isBanker,
             ),
             const SizedBox(height: 16),
@@ -214,6 +293,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               label: 'Company',
               icon: Icons.business,
               controller: _companyCtrl,
+              validator: ProfileManager.validateCompany,
+              readOnly: _manager.isSaving,
               isEditing: _isEditing && !auth.isBanker,
             ),
             const SizedBox(height: 16),
@@ -221,6 +302,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               label: 'Phone',
               icon: Icons.phone_outlined,
               controller: _phoneCtrl,
+              validator: ProfileManager.validatePhone,
+              readOnly: _manager.isSaving,
               isEditing: _isEditing && !auth.isBanker,
             ),
           ],
@@ -299,17 +382,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    context.watch<ProfileManager>();
+    final loading = context.watch<AuthManager>().isProfileLoading;
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      child: loading
+          ? const ProfileSkeleton()
+          : KeyedSubtree(
+              key: const ValueKey('profile-content'),
+              child: _buildContent(context),
+            ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     final auth = context.watch<AuthManager>();
     final user = auth.currentUser;
 
     if (user == null) {
       return const Center(child: Text('Not logged in'));
-    }
-
-    if (!_isEditing) {
-      _nameCtrl.text = user.fullName;
-      _companyCtrl.text = user.companyName;
-      _phoneCtrl.text = user.phone;
     }
 
     return LayoutBuilder(
@@ -389,6 +480,8 @@ class _ProfileField extends StatelessWidget {
   final String? value;
   final TextEditingController? controller;
   final bool isEditing;
+  final String? Function(String?)? validator;
+  final bool readOnly;
 
   const _ProfileField({
     required this.label,
@@ -396,6 +489,8 @@ class _ProfileField extends StatelessWidget {
     this.value,
     this.controller,
     required this.isEditing,
+    this.validator,
+    this.readOnly = false,
   });
 
   @override
@@ -404,7 +499,11 @@ class _ProfileField extends StatelessWidget {
 
     if (isEditing && controller != null) {
       return TextFormField(
+        key: ValueKey(label),
         controller: controller,
+        validator: validator,
+        autovalidateMode: AutovalidateMode.always,
+        readOnly: readOnly,
         decoration: appInputDecoration(label: label, prefixIcon: icon),
       );
     }

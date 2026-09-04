@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'profile_manager.dart';
 
 import '../../services/supabase/auth_repository.dart';
 import '../../services/supabase/profile_repository.dart';
@@ -51,6 +52,8 @@ class UserAccount {
 }
 
 class AuthManager extends ChangeNotifier {
+  ProfileManager? _profileManager;
+  ProfileManager get profileManager => _profileManager ??= ProfileManager(this);
   final AuthRepository? _authRepository;
   final ProfileRepository? _profileRepository;
   final Future<void> Function(UserAccount?)? _authChangedCallback;
@@ -58,6 +61,7 @@ class AuthManager extends ChangeNotifier {
   UserAccount? _currentUser;
   bool _isBanker = false;
   bool _isInitialized = false;
+  int _profileLoads = 0;
   bool _isAuthenticating = false;
   bool _isPasswordRecovery = false;
   String? _notice;
@@ -88,6 +92,7 @@ class AuthManager extends ChangeNotifier {
   bool get isLoggedIn => _currentUser != null;
   bool get isBanker => _isBanker;
   bool get isInitialized => _isInitialized;
+  bool get isProfileLoading => _profileLoads > 0;
   bool get isPasswordRecovery => _isPasswordRecovery;
 
   String? takeNotice() {
@@ -342,21 +347,28 @@ class AuthManager extends ChangeNotifier {
   }
 
   Future<void> _loadUser(User user) async {
-    Map<String, dynamic>? profile;
-    final repository = _profileRepository;
-    if (repository != null) {
-      profile = await repository.findById(user.id);
-      profile ??= await repository.save(
-        id: user.id,
-        fullName: user.userMetadata?['full_name'] as String? ?? 'SME User',
-        companyName: user.userMetadata?['company_name'] as String? ?? '',
-        phone: user.userMetadata?['phone'] as String? ?? '',
-        email: user.email ?? '',
-      );
-    }
-    _currentUser = UserAccount.fromProfile(user, profile);
-    _isBanker = _authRepository?.isBanker(user) ?? false;
+    _profileLoads++;
     notifyListeners();
+    try {
+      Map<String, dynamic>? profile;
+      final repository = _profileRepository;
+      if (repository != null) {
+        profile = await repository.findById(user.id);
+        profile ??= await repository.save(
+          id: user.id,
+          fullName: user.userMetadata?['full_name'] as String? ?? 'SME User',
+          companyName: user.userMetadata?['company_name'] as String? ?? '',
+          phone: user.userMetadata?['phone'] as String? ?? '',
+          email: user.email ?? '',
+        );
+      }
+      _currentUser = UserAccount.fromProfile(user, profile);
+      _isBanker = _authRepository?.isBanker(user) ?? false;
+      notifyListeners();
+    } finally {
+      _profileLoads--;
+      notifyListeners();
+    }
   }
 
   Future<void> _notifyAuthenticationChanged() async {
@@ -369,6 +381,7 @@ class AuthManager extends ChangeNotifier {
 
   @override
   void dispose() {
+    _profileManager?.dispose();
     unawaited(_authSubscription?.cancel());
     super.dispose();
   }

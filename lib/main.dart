@@ -210,15 +210,18 @@ class _HomeShellState extends State<_HomeShell> {
         actions: [
           if (user != null) ...[
             if (showGreeting)
-              Center(
-                child: Text(
-                  auth.isBanker ? 'Banker' : user.fullName.split(' ').first,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: Colors.white70,
+              SizedBox(
+                width: screenWidth * 0.2,
+                child: Center(
+                  child: Text(
+                    auth.isBanker ? 'Banker' : user.fullName.split(' ').first,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: Colors.white70,
+                    ),
                   ),
                 ),
               ),

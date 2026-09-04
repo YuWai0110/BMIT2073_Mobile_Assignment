@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants.dart';
@@ -33,6 +32,7 @@ class _SignupScreenState extends State<SignupScreen> {
         validateRegistrationPassword(_passwordCtrl.text) == null &&
         validatePasswordConfirmation(_confirmCtrl.text, _passwordCtrl.text) ==
             null &&
+        validateRegistrationCompany(_companyCtrl.text) == null &&
         validateMalaysianPhone(_phoneCtrl.text) == null;
     if (isValid != _isFormValid) {
       setState(() => _isFormValid = isValid);
@@ -165,7 +165,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   label: 'Full Name',
                   hint: 'e.g. Ahmad Bin Ali',
                   prefixIcon: Icons.person_outline,
-                ),
+                ).copyWith(errorMaxLines: 6),
                 textCapitalization: TextCapitalization.words,
                 validator: validateFullName,
                 onChanged: (_) => _updateFormValidity(),
@@ -177,7 +177,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   label: 'Email',
                   hint: 'your@email.com',
                   prefixIcon: Icons.email_outlined,
-                ),
+                ).copyWith(errorMaxLines: 6),
                 keyboardType: TextInputType.emailAddress,
                 validator: validateEmailAddress,
                 onChanged: (_) => _updateFormValidity(),
@@ -191,6 +191,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       label: 'Password',
                       prefixIcon: Icons.lock_outline,
                     ).copyWith(
+                      errorMaxLines: 6,
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword
@@ -215,6 +216,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       label: 'Confirm Password',
                       prefixIcon: Icons.lock_outline,
                     ).copyWith(
+                      errorMaxLines: 6,
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscureConfirm
@@ -237,8 +239,10 @@ class _SignupScreenState extends State<SignupScreen> {
                   label: 'Company Name (Optional)',
                   hint: 'e.g. TechVision Sdn Bhd',
                   prefixIcon: Icons.business,
-                ),
+                ).copyWith(errorMaxLines: 6),
                 textCapitalization: TextCapitalization.words,
+                validator: validateRegistrationCompany,
+                onChanged: (_) => _updateFormValidity(),
               ),
               const SizedBox(height: 14),
               TextFormField(
@@ -247,12 +251,8 @@ class _SignupScreenState extends State<SignupScreen> {
                   label: 'Phone Number (Optional)',
                   hint: 'e.g. 0123456789',
                   prefixIcon: Icons.phone_outlined,
-                ),
+                ).copyWith(errorMaxLines: 6),
                 keyboardType: TextInputType.phone,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(11),
-                ],
                 validator: validateMalaysianPhone,
                 onChanged: (_) => _updateFormValidity(),
               ),
