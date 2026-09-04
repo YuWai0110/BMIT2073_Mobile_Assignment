@@ -218,6 +218,11 @@ declare
   banker boolean := coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') = 'banker';
 begin
   if tg_op = 'DELETE' then
+    if pg_trigger_depth() > 1 and current_user in ('postgres', 'supabase_auth_admin') then
+      if not exists (select 1 from auth.users where id = old.user_id) then
+        return old;
+      end if;
+    end if;
     if old.status <> 'pending' then raise exception 'loan_not_pending'; end if;
     return old;
   end if;

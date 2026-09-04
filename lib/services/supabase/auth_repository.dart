@@ -43,6 +43,9 @@ class AuthRepository {
 
   Future<void> signOut() => _service.auth.signOut();
 
+  Future<void> clearRegistrationSession() =>
+      _service.auth.signOut(scope: SignOutScope.local);
+
   Future<void> sendPasswordReset(String email) {
     return _service.auth
         .resetPasswordForEmail(email, redirectTo: supabaseAuthRedirectUrl)

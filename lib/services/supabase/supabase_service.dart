@@ -124,6 +124,45 @@ String friendlySupabaseError(
   return fallback;
 }
 
+String friendlySignUpError(Object error) {
+  if (error is TimeoutException ||
+      (error is AuthUnknownException &&
+          error.originalError is TimeoutException)) {
+    return 'The request timed out. Please check your connection and try again.';
+  }
+  if (error is SocketException ||
+      error is AuthRetryableFetchException ||
+      (error is AuthUnknownException &&
+          error.originalError is SocketException)) {
+    return 'Unable to connect. Please check your internet connection and try again.';
+  }
+  if (error is AuthException) {
+    final code = error.code ?? '';
+    final message = error.message.toLowerCase();
+    if (error.statusCode == '429' ||
+        code == 'over_email_send_rate_limit' ||
+        message.contains('rate limit') ||
+        message.contains('too many requests')) {
+      return 'Too many verification email requests. Please try again later.';
+    }
+    if (code == 'user_already_exists' ||
+        code == 'email_exists' ||
+        message.contains('already registered')) {
+      return 'An account with this email already exists.';
+    }
+    if (code == 'email_address_invalid' ||
+        code == 'email_address_not_authorized' ||
+        message.contains('invalid email') ||
+        message.contains('email address is invalid')) {
+      return 'Please enter a valid email address.';
+    }
+    if (code == 'weak_password' || message.contains('password')) {
+      return 'Password must contain at least 8 characters, one uppercase letter, one lowercase letter, and one number.';
+    }
+  }
+  return 'Unable to create your account. Please try again.';
+}
+
 String friendlyPasswordResetError(Object error) {
   if (error is TimeoutException) {
     return 'The request timed out. Please check your connection and try again.';

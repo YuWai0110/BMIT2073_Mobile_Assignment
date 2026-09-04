@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -16,14 +18,18 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
   bool _isLoading = false;
+  Timer? _cooldownTimer;
+  int _cooldownSeconds = 0;
 
   @override
   void dispose() {
+    _cooldownTimer?.cancel();
     _emailCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _handleReset() async {
+    if (_isLoading || _cooldownSeconds > 0) return;
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -35,7 +41,18 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _cooldownSeconds = 60;
+    });
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() => _cooldownSeconds = (60 - timer.tick).clamp(0, 60));
+      if (_cooldownSeconds == 0) timer.cancel();
+    });
     final auth = context.read<AuthManager>();
     final error = await auth.resetPassword(email: _emailCtrl.text);
     if (!mounted) return;
@@ -135,7 +152,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
-                          onPressed: _isLoading ? null : _handleReset,
+                          onPressed: _isLoading || _cooldownSeconds > 0
+                              ? null
+                              : _handleReset,
                           icon: _isLoading
                               ? const SizedBox(
                                   height: 20,
@@ -146,7 +165,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                   ),
                                 )
                               : const Icon(Icons.lock_reset),
-                          label: const Text('Send Reset Email'),
+                          label: Text(
+                            _cooldownSeconds > 0
+                                ? 'Resend available in ${_cooldownSeconds}s'
+                                : 'Send Reset Email',
+                          ),
                         ),
                       ),
                       const SizedBox(height: 16),

@@ -354,25 +354,27 @@ class _ProfileScreenState extends State<_ProfileEditor> {
           children: [
             Text('Theme', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
-            SegmentedButton<ThemeMode>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(value: ThemeMode.light, label: Text('Light')),
-                ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
-                ButtonSegment(value: ThemeMode.system, label: Text('System')),
-              ],
-              selected: {manager.themeMode},
-              onSelectionChanged: (selection) async {
-                final saved = await manager.setThemeMode(selection.single);
-                if (!context.mounted || saved) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Unable to save theme preference. Please try again.',
+            Center(
+              child: SegmentedButton<ThemeMode>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(value: ThemeMode.light, label: Text('Light')),
+                  ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
+                  ButtonSegment(value: ThemeMode.system, label: Text('System')),
+                ],
+                selected: {manager.themeMode},
+                onSelectionChanged: (selection) async {
+                  final saved = await manager.setThemeMode(selection.single);
+                  if (!context.mounted || saved) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Unable to save theme preference. Please try again.',
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           ],
         ),

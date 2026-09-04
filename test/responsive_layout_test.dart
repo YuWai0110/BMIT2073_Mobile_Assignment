@@ -156,7 +156,7 @@ void main() {
           child: const MainApp(),
         ),
       );
-      await tester.tap(find.text('Skip'));
+      expect(find.text('Skip'), findsNothing);
       await tester.pumpAndSettle();
       expect(find.byType(RefreshIndicator), findsOneWidget);
       if (size.width >= 700 && size.width > size.height) {
@@ -192,7 +192,7 @@ void main() {
         child: const MainApp(),
       ),
     );
-    await tester.tap(find.text('Skip'));
+    expect(find.text('Skip'), findsNothing);
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Calculator'));
